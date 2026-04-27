@@ -3,7 +3,7 @@
 An app to generate and manage recipes
 
 
-#Team
+## Team
 
 - [Vinayak Kohli](www.linkedin.com/in/vinayak-kohl) - Product Owner
 - [Anikait Vishwanathan](
