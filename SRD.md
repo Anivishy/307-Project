@@ -65,10 +65,10 @@ USER STORIES FOLLOW THE FORMAT: "AS A [TYPE OF USER], I WANT TO [ACTION] SO THAT
 -	US-03: User Groups View
 -	US-04: Individual group view pages
 ID	REQUIREMENT	PRIORITY
-US-01	As a user I can visit the home page and see an explanation of what the site does. I also have a clear sign up flow, where I can create an account if I do not have one using an email and setting my password. I can see a clear sign in flow if I already have an account, this will allow me to access my account information.
-US-02	As a user I have now signed into a website am greeted with my profile view. I can see that what ingredients I have. I add new ingredients, edit the quantity, and remove ingredients from the list.
-US-03	Now that I have updated the ingredients that I have available as well as their quantities, I want be able to navigate to a "groups" tab where I can see a collection of groups that I am in represented as cards. Clicking on one of these cards will take me to that groups page.
-US-04	As a user now that I have selected a specific group, I am now navigated to a specific group page. Here I can see all the users in my group, represented as cards with all their recipies. I also have a textbox to enter any specifications that I have, like cuisine, how many meals (mains vs sides), etc.
+- US-01	As a user I can visit the home page and see an explanation of what the site does. I also have a clear sign up flow, where I can create an account if I do not have one using an email and setting my password. I can see a clear sign in flow if I already have an account, this will allow me to access my account information.
+- US-02	As a user I have now signed into a website am greeted with my profile view. I can see that what ingredients I have. I add new ingredients, edit the quantity, and remove ingredients from the list.
+- US-03	Now that I have updated the ingredients that I have available as well as their quantities, I want be able to navigate to a "groups" tab where I can see a collection of groups that I am in represented as cards. Clicking on one of these cards will take me to that groups page.
+- US-04	As a user now that I have selected a specific group, I am now navigated to a specific group page. Here I can see all the users in my group, represented as cards with all their recipies. I also have a textbox to enter any specifications that I have, like cuisine, how many meals (mains vs sides), etc.
 
 3.	FUNCTIONAL REQUIREMENTS
 THE SYSTEM SHALL...
