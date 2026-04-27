@@ -15,4 +15,3 @@ An app to generate and manage recipes
 Stack: Next.js Typescript Prisma Supabase
 
 
-Visit [contributing.md](docs/contributing.md) for info on how to get started
