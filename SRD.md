@@ -16,7 +16,7 @@ PROJECT ASSETS:
 - DEPLOYMENT: TBD
 
 DOCUMENT HISTORY: 	
-LAST DATE CHANGED: 5/03/26 	WHO: Vinayak	WHAT WAS CHANGED: Problem statement, user stories, functional requirements.
+LAST DATE CHANGED: 5/04/26 	WHO: Vinayak WHAT WAS CHANGED: Added product vision
 ________________________________________ 
 
 Recipe OS
@@ -52,6 +52,7 @@ ________________________________________
 -	PROBLEM STATEMENT: Roomates or co-living households often struggle to manage individual meals with sharing or cooking together. Planning a family dinner or meals for the week can be hard if there is overlap for ingredients used in personal meals and groups meals. Recipe OS makes this process simpler and allows flexibility for groups to generate recipes based on what individuals have now and what they are willing to share, allowing roomate connections to flourish over meals, while allowing individuals the flexibility to cook on their own schedule and preferences when desired.
 -	TARGET AUDIENCE: Roomates and co-living households
 -	SCOPE: A web-app that allows roomates to collaboratively generate meal bundles with recipes.
+-   PRODUCT VISION: For roommates and co-living households who keep separate groceries but want an easier way to plan shared meals together. Recipe OS (name in progress) is a web-based collaborative recipe-generation app which turns everyone’s available ingredients into coordinated meals. Unlike What’s for dinner our app is not just a meal planner, it allows separate groceries to be used in conjunction with one another to generate meals to share, allowing individuals flexibility to eat communally and separately. Generate multi-course meals on the fly without having to wait for an email once a week with a meal plan. Recipe OS shows who is contributing what, respects household constraints, and lets group admins select a shared meal plan for everyone
 
 2.	USER STORIES
 USER STORIES FOLLOW THE FORMAT: "AS A [TYPE OF USER], I WANT TO [ACTION] SO THAT [VALUE/BENEFIT]."...
