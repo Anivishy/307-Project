@@ -68,8 +68,7 @@ USER STORIES FOLLOW THE FORMAT: "AS A [TYPE OF USER], I WANT TO [ACTION] SO THAT
 - US11 — Generate one more bundle
 - US12 — Automatic pantry decrement + activity log
 - US13 — Email notifications
-- US14 — Log bundle quality signals
-- US15 — Admin concurrency
+- US14 — Admin concurrency
 
 US-1 As a new user, I want to sign in with a one-time-password sent via email so that my pantry and preferences persist across sessions.
 
@@ -386,55 +385,27 @@ FR13.11 Recipient selection and event-trigger behavior shall be covered by tests
 
 ⸻
 
-FR14.1 The system shall define an analytics schema for bundle generation and selection.
+FR14.1 The system shall stamp each candidate set with the pantry snapshot version used during generation.
 
-FR14.2 The analytics schema shall capture generation inputs.
+FR14.2 The system shall stamp each candidate set with the active-bundle version used during generation.
 
-FR14.3 The analytics schema shall capture model version.
+FR14.3 The select-bundle endpoint shall compare the candidate set version token against current pantry and active-bundle versions.
 
-FR14.4 The analytics schema shall capture validator version.
+FR14.4 The select-bundle endpoint shall reject stale selections by default.
 
-FR14.5 The analytics schema shall capture scoring outputs.
+FR14.5 The UI shall warn admins when a candidate set is stale.
 
-FR14.6 The system shall log prompt metadata for each generation event.
+FR14.6 The stale-result warning shall explain that another admin may have changed the active bundle or pantry state.
 
-FR14.7 The system shall log validator outcomes for each generated candidate.
+FR14.7 The stale-result flow shall offer refresh, re-validation, or explicit confirmation depending on final product policy.
 
-FR14.8 The system shall log whether each candidate was selected or not selected.
+FR14.8 Bundle replacement shall release prior reservations and apply new reservations atomically.
 
-FR14.9 The system shall log pantry coverage percentage per bundle.
+FR14.9 The system shall prevent double-decrementing when two admins attempt selection concurrently.
 
-FR14.10 The system shall log missing ingredient count per bundle.
+FR14.10 Concurrency tests shall confirm that simultaneous admin selections do not double-decrement inventory.
 
-FR14.11 The system shall log override count per bundle.
-
-FR14.12 The system shall provide an internal analytics dashboard for reviewing generation quality signals.
-
-FR14.13 Tests shall confirm that analytics events fire on generation and selection.
-
-⸻
-
-FR15.1 The system shall stamp each candidate set with the pantry snapshot version used during generation.
-
-FR15.2 The system shall stamp each candidate set with the active-bundle version used during generation.
-
-FR15.3 The select-bundle endpoint shall compare the candidate set version token against current pantry and active-bundle versions.
-
-FR15.4 The select-bundle endpoint shall reject stale selections by default.
-
-FR15.5 The UI shall warn admins when a candidate set is stale.
-
-FR15.6 The stale-result warning shall explain that another admin may have changed the active bundle or pantry state.
-
-FR15.7 The stale-result flow shall offer refresh, re-validation, or explicit confirmation depending on final product policy.
-
-FR15.8 Bundle replacement shall release prior reservations and apply new reservations atomically.
-
-FR15.9 The system shall prevent double-decrementing when two admins attempt selection concurrently.
-
-FR15.10 Concurrency tests shall confirm that simultaneous admin selections do not double-decrement inventory.
-
-FR15.11 Concurrency tests shall confirm that stale-result warnings fire when expected.
+FR14.11 Concurrency tests shall confirm that stale-result warnings fire when expected.
 
 5. NON-FUNCTIONAL REQUIREMENTS
 -	INTEGRITY: The system shall validate user input and handle errors without crashing.
