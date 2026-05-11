@@ -1,0 +1,107 @@
+import { NextRequest, NextResponse } from "next/server";
+
+import { findMissingIngredientIds } from "@/lib/constraints/ingredients";
+import { parseConstraintsPayload } from "@/lib/constraints/normalize";
+import {
+  getUserConstraints,
+  patchUserConstraints,
+  replaceUserConstraints,
+} from "@/lib/constraints/store";
+import type { UserConstraintsInput } from "@/lib/constraints/types";
+import { getCurrentUserId } from "@/lib/http/auth";
+import { errorResponse } from "@/lib/http/responses";
+
+async function readJson(request: NextRequest): Promise<unknown> {
+  try {
+    return await request.json();
+  } catch {
+    return {};
+  }
+}
+
+function requireUserId(request: NextRequest): string | NextResponse {
+  const userId = getCurrentUserId(request);
+
+  if (!userId) {
+    return errorResponse(
+      401,
+      "unauthenticated",
+      "Profile constraints require an authenticated user.",
+    );
+  }
+
+  return userId;
+}
+
+function validateNeverInclude(input: UserConstraintsInput): NextResponse | null {
+  const missingIngredientIds = findMissingIngredientIds(input.neverIncludeIngredientIds ?? []);
+
+  if (missingIngredientIds.length === 0) {
+    return null;
+  }
+
+  return errorResponse(
+    400,
+    "invalidIngredientIds",
+    "neverIncludeIngredientIds contains ids that do not exist.",
+    { invalidIngredientIds: missingIngredientIds },
+  );
+}
+
+export async function GET(request: NextRequest) {
+  const userId = requireUserId(request);
+
+  if (typeof userId !== "string") {
+    return userId;
+  }
+
+  return NextResponse.json({ constraints: getUserConstraints(userId) });
+}
+
+export async function POST(request: NextRequest) {
+  const userId = requireUserId(request);
+
+  if (typeof userId !== "string") {
+    return userId;
+  }
+
+  const parsed = parseConstraintsPayload(await readJson(request), { partial: false });
+
+  if (!parsed.ok) {
+    return errorResponse(400, "invalidConstraints", "Invalid constraints payload.", {
+      issues: parsed.issues,
+    });
+  }
+
+  const ingredientError = validateNeverInclude(parsed.value);
+
+  if (ingredientError) {
+    return ingredientError;
+  }
+
+  return NextResponse.json({ constraints: replaceUserConstraints(userId, parsed.value) });
+}
+
+export async function PATCH(request: NextRequest) {
+  const userId = requireUserId(request);
+
+  if (typeof userId !== "string") {
+    return userId;
+  }
+
+  const parsed = parseConstraintsPayload(await readJson(request), { partial: true });
+
+  if (!parsed.ok) {
+    return errorResponse(400, "invalidConstraints", "Invalid constraints payload.", {
+      issues: parsed.issues,
+    });
+  }
+
+  const ingredientError = validateNeverInclude(parsed.value);
+
+  if (ingredientError) {
+    return ingredientError;
+  }
+
+  return NextResponse.json({ constraints: patchUserConstraints(userId, parsed.value) });
+}
