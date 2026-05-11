@@ -1,96 +1,376 @@
-This guide will get your local environment synced with our shared Supabase backend. Follow these steps in order.
+# Supabase + Prisma Setup
 
----
+This guide gets a teammate from a fresh clone to a working local
+backend connected to our shared Supabase Postgres database.
 
-## 1. Create a Supabase Account
-Before starting, you need an account to authorize the CLI.
-1. Go to [supabase.com](https://supabase.com) and click **Sign Up**.
-2. **Crucial:** Use the same email address that was invited to the project.
-3. Accept the invitation sent to your email by the project owner.
+Our current setup:
 
-## 2. Install the Supabase CLI
-You need the CLI to sync the database schema and manage migrations.
+- Supabase hosts Postgres and Auth.
+- Prisma owns the app schema in `prisma/schema.prisma`.
+- Prisma migrations live in `prisma/migrations`.
+- The Next backend talks to Supabase through Prisma.
+- The React frontend calls backend `/api/...` routes. It should
+  not use the database password.
 
-**Mac (Homebrew):**
+Last checked against current docs: May 11, 2026.
+
+## 1. Prerequisites
+
+Install these before starting:
+
+- Node.js 20.19 or newer
+- npm
+- Git
+- Supabase project invite accepted
+- Supabase CLI, recommended for project linking and database
+  advisors
+
+Install the Supabase CLI:
+
 ```bash
 brew install supabase/tap/supabase
-
 ```
-* you can also use npm on mac
 
-**Windows / Linux (NPM):**
+Or with npm:
 
 ```bash
 npm install -g supabase
-
 ```
 
-> **Note:** Verify the installation by running `supabase --version`.
+Verify:
 
-## 3. Link Your Local Repo
+```bash
+supabase --version
+```
 
-Run these commands inside the root of our Git repository.
+## 2. Pull The Repo
 
-### Step A: Login
+Start from the project root.
 
-This will open a browser window to authenticate your machine.
+```bash
+git switch main
+git pull origin main
+```
+
+Install dependencies:
+
+```bash
+npm ci
+npm ci --prefix packages/backend
+npm ci --prefix packages/react-frontend
+```
+
+## 3. Get Supabase Access
+
+1. Create or sign in to your Supabase account.
+2. Accept the invite to our project.
+3. Get these values from the project owner or the Supabase
+   Dashboard:
+
+- Project ref
+- Database password
+- Supavisor session pooler connection string
+
+In Supabase, click **Connect** in the project dashboard and look
+for the pooler connection string. For local development with
+Prisma, use the **session pooler** string that ends in port
+`5432`.
+
+Do not use the transaction pooler on port `6543` for this local
+setup unless we deliberately switch to that deployment mode
+later.
+
+## 4. Create `.env.local`
+
+Create a file named `.env.local` in the repo root. Never commit
+it.
+
+Template:
+
+```env
+DATABASE_URL="postgresql://postgres.<project-ref>:<url-encoded-password>@aws-1-us-east-1.pooler.supabase.com:5432/postgres"
+DIRECT_URL="postgresql://postgres.<project-ref>:<url-encoded-password>@aws-1-us-east-1.pooler.supabase.com:5432/postgres"
+```
+
+Use the exact host/region from your Supabase dashboard. The
+example above uses `aws-1-us-east-1`, but your dashboard string
+is the source of truth.
+
+If your password contains symbols such as `@`, `#`, `/`, `?`,
+`:`, `%`, `&`, or `+`, URL-encode it before putting it in the
+connection string.
+
+Interactive encoder:
+
+```bash
+node -e 'const readline=require("readline");const rl=readline.createInterface({input:process.stdin,output:process.stdout});rl.question("DB password: ",p=>{console.log(encodeURIComponent(p));rl.close();})'
+```
+
+Example:
+
+```txt
+raw password:     my@pass/word#123
+encoded password: my%40pass%2Fword%23123
+```
+
+Security rules:
+
+- Do not put `DATABASE_URL`, `DIRECT_URL`, the database
+  password, or a service role key in frontend env vars.
+- Do not use `NEXT_PUBLIC_` or `VITE_` for secrets.
+- Do not paste secrets into committed docs, issues, screenshots,
+  or PR descriptions.
+
+## 5. Validate Prisma
+
+From the repo root:
+
+```bash
+npx prisma validate
+```
+
+Generate the backend Prisma client:
+
+```bash
+npm run prisma:generate --prefix packages/backend
+```
+
+Check migration status:
+
+```bash
+npx prisma migrate status
+```
+
+If the database is already up to date, you are good. If Prisma
+reports pending migrations, coordinate in the group chat before
+applying them to the shared Supabase database.
+
+Apply pending migrations only when the team agrees:
+
+```bash
+npx prisma migrate dev
+```
+
+## 6. Link The Supabase CLI
+
+The app can run with just `.env.local`, but linking the CLI is
+useful for database advisors and project commands.
 
 ```bash
 supabase login
-
+supabase link --project-ref <project-ref>
 ```
 
-### Step B: Link to Project
+The CLI creates local files under `supabase/.temp/`; those are
+intentionally ignored by Git.
 
-Replace `[PROJECT_ID]` with the ID found in our group chat.
+Run database advisors after migrations:
 
 ```bash
-supabase link --project-ref [PROJECT_ID]
-
+supabase db advisors --linked --level warn
 ```
 
-*You will be prompted for the **Database Password**, it's in the group chat.*
+The expected result after our current migrations is:
 
----
+```txt
+No issues found
+```
 
-## ⚡ Supabase 101: Team Workflow
+## 7. Run The App
 
-To keep our database in sync without breaking each other's code, follow these rules:
-
-### 1. Don't touch the Dashboard UI for Schema Changes
-
-Avoid creating tables or columns directly in the Supabase browser dashboard. If you do, those changes only exist in the cloud and won't be in our Git history.
-
-### 2. Use Migrations
-
-If you need to change the database (add a table, rename a column):
-
-1. **Pull the current state:** `supabase db pull`
-2. This creates a new file in `supabase/migrations/`.
-3. Commit this file to Git so we all get the update when we `git pull`.
-
-### 3. Local Development (Optional)
-
-If you have Docker installed, you can run a local version of Supabase to test things without affecting the "production" database:
+Start the backend first. The frontend Vite config proxies `/api`
+to `http://127.0.0.1:3000`, so keep the backend on port `3000`
+unless you also update the proxy.
 
 ```bash
-supabase start
-
+npm run dev --prefix packages/backend
 ```
 
-### 4. Generating Types (TypeScript)
-
-Since we are using TypeScript, run this to get auto-complete for our database schema:
+In another terminal:
 
 ```bash
-supabase gen types typescript --local > types/supabase.ts
-
+npm run dev --prefix packages/react-frontend
 ```
 
----
+Run verification:
 
-##  Troubleshooting
+```bash
+npm test --prefix packages/backend
+npm run build --prefix packages/backend
+npm test --prefix packages/react-frontend
+npm run build --prefix packages/react-frontend
+```
 
-* **`command not found: supabase`**: Restart your terminal or check your `$PATH`.
-* **Permission Denied**: Ensure you accepted the email invite to the Supabase Organization.
-* **Database Password**: If you get an 'incorrect password' error during `link`, the project owner needs to reset it in Settings > Database.
+## 8. How Schema Changes Work
+
+Do not create or edit app tables directly in the Supabase
+Dashboard table editor. Dashboard-only changes are easy to lose
+because they are not in Git.
+
+Use this workflow instead:
+
+```bash
+git switch main
+git pull origin main
+```
+
+Edit:
+
+```txt
+prisma/schema.prisma
+```
+
+Create a reviewable migration:
+
+```bash
+npx prisma migrate dev --create-only --name describe_the_change
+```
+
+Review the generated SQL in
+`prisma/migrations/.../migration.sql`.
+
+Apply it when ready:
+
+```bash
+npx prisma migrate dev
+```
+
+Then verify:
+
+```bash
+npx prisma validate
+npm test --prefix packages/backend
+npm run build --prefix packages/backend
+supabase db advisors --linked --level warn
+```
+
+Commit both files:
+
+```txt
+prisma/schema.prisma
+prisma/migrations/<timestamp>_<name>/migration.sql
+```
+
+## 9. RLS And Data API Rules
+
+All current app tables are in `public` and have Row Level
+Security enabled.
+
+Right now we intentionally do not rely on direct frontend table
+access through `supabase-js`. The frontend should call backend
+API routes, and the backend should use Prisma.
+
+If we later expose tables through Supabase's Data API, we must
+update migrations with all three pieces together:
+
+```sql
+grant select, insert, update, delete on public.your_table to authenticated;
+alter table public.your_table enable row level security;
+create policy "policy name"
+on public.your_table
+for select
+to authenticated
+using (auth.uid() = user_id);
+```
+
+This matters because Supabase is changing default table exposure
+behavior in 2026. New public tables may not be reachable through
+the Data API unless explicit grants exist. RLS still controls
+rows, but grants control whether a role can access the table at
+all.
+
+## 10. Current Backend API Slice
+
+The database-backed routes currently available are:
+
+```txt
+POST   /api/profiles
+GET    /api/profiles/me
+GET    /api/profiles/:profileId
+GET    /api/ingredients
+POST   /api/ingredients
+PATCH  /api/ingredients/:ingredientId
+DELETE /api/ingredients/:ingredientId
+```
+
+For now, ingredient routes use an `x-user-id` header as a
+temporary development stand-in for real Supabase Auth session
+handling.
+
+Example:
+
+```bash
+curl http://localhost:3000/api/ingredients \
+  -H "x-user-id: <profile-uuid>"
+```
+
+## 11. Troubleshooting
+
+### `P1013 The provided database string is invalid`
+
+Your connection string is malformed. Common causes:
+
+- Password is not URL-encoded.
+- Missing host.
+- Missing username prefix like `postgres.<project-ref>`.
+- Quotes are mismatched in `.env.local`.
+
+### `P1001 Can't reach database server`
+
+Check:
+
+- You are using the dashboard's current pooler host.
+- The port is `5432` for this setup.
+- You are online and not blocked by VPN/firewall.
+
+### `P4001 The introspected database was empty`
+
+This means Prisma connected successfully, but the database had
+no tables. On a fresh project, that is expected before
+migrations are applied.
+
+### `PrismaClient needs to be constructed with a valid PrismaClientOptions`
+
+Prisma 7 requires a database adapter. Our backend uses
+`@prisma/adapter-pg` in `packages/backend/src/lib/prisma.ts`.
+Run:
+
+```bash
+npm ci --prefix packages/backend
+npm run prisma:generate --prefix packages/backend
+```
+
+### `permission denied for table ...`
+
+If this comes from direct Supabase Data API access, the table
+probably lacks grants or RLS policies. For the current app,
+prefer calling backend API routes instead of accessing tables
+directly from the frontend.
+
+### `vitest: command not found`
+
+Install package dependencies:
+
+```bash
+npm ci --prefix packages/backend
+```
+
+### The frontend API calls fail in dev
+
+Make sure the backend is running on port `3000`. The frontend
+proxy expects:
+
+```txt
+http://127.0.0.1:3000
+```
+
+## References
+
+- Supabase Prisma guide:
+  https://supabase.com/docs/guides/database/prisma
+- Supabase CLI reference:
+  https://supabase.com/docs/reference/cli/introduction
+- Supabase changelog, Data API grants change:
+  https://supabase.com/changelog
+- Prisma Client setup:
+  https://www.prisma.io/docs/orm/prisma-client/setup-and-configuration/introduction
