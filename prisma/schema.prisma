@@ -1,5 +1,6 @@
 generator client {
   provider = "prisma-client-js"
+  output   = "../packages/backend/src/generated/prisma"
 }
 
 datasource db {
@@ -104,8 +105,8 @@ model MenuRequest {
   createdAt     DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt     DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  group       Group    @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  requestedBy Profile  @relation(fields: [requestedById], references: [id], onDelete: Restrict)
+  group       Group   @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  requestedBy Profile @relation(fields: [requestedById], references: [id], onDelete: Restrict)
   menu        Menu?
 
   @@index([groupId, createdAt])
