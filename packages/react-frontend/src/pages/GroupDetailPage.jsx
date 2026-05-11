@@ -27,6 +27,8 @@ export function GroupDetailPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  const [customStaplesDraft, setCustomStaplesDraft] = useState([]);
+  const [stapleQuery, setStapleQuery] = useState("");
 
   useEffect(() => {
     if (!group) {
@@ -50,6 +52,7 @@ export function GroupDetailPage() {
         }
 
         setSettings(settingsPayload);
+        setCustomStaplesDraft(settingsPayload.customStaples);
         setCandidates(candidatePayload.candidates);
         setFilteredOutCount(candidatePayload.filteredOutCandidateCount);
       } catch (error) {
@@ -76,14 +79,107 @@ export function GroupDetailPage() {
     setErrorMessage("");
 
     try {
-      const updatedSettings = await updateGroupSettings(group.id, nextValue);
+      const updatedSettings = await updateGroupSettings(group.id, {
+        allowMissingIngredients: nextValue,
+      });
       const updatedCandidates = await getBundleCandidates(group.id);
 
       setSettings(updatedSettings);
+      setCustomStaplesDraft(updatedSettings.customStaples);
       setCandidates(updatedCandidates.candidates);
       setFilteredOutCount(updatedCandidates.filteredOutCandidateCount);
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Unable to save group settings.");
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  async function refreshCandidates(nextSettings) {
+    const updatedCandidates = await getBundleCandidates(group.id);
+    setSettings(nextSettings);
+    setCustomStaplesDraft(nextSettings.customStaples);
+    setCandidates(updatedCandidates.candidates);
+    setFilteredOutCount(updatedCandidates.filteredOutCandidateCount);
+  }
+
+  async function handleStaplesToggle(event) {
+    const nextValue = event.target.checked;
+    setIsSaving(true);
+    setErrorMessage("");
+
+    try {
+      const nextSettings = await updateGroupSettings(group.id, {
+        staplesEnabled: nextValue,
+        customStaples: customStaplesDraft.map((item) => item.id),
+      });
+
+      await refreshCandidates(nextSettings);
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "Unable to update staples settings.");
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  function handleAddCustomStaple() {
+    if (!settings) {
+      return;
+    }
+
+    const normalizedQuery = stapleQuery.trim().toLowerCase();
+
+    if (!normalizedQuery) {
+      return;
+    }
+
+    const match = settings.ingredientCatalog.find(
+      (item) =>
+        item.id === normalizedQuery ||
+        item.name.toLowerCase() === normalizedQuery ||
+        item.name.toLowerCase().includes(normalizedQuery),
+    );
+
+    if (!match) {
+      setErrorMessage("Pick a staple from the ingredient suggestions before adding it.");
+      return;
+    }
+
+    const isAlreadyListed =
+      settings.defaultStaplesPreset.some((item) => item.id === match.id) ||
+      customStaplesDraft.some((item) => item.id === match.id);
+
+    if (isAlreadyListed) {
+      setErrorMessage("That staple is already listed for the group.");
+      return;
+    }
+
+    setErrorMessage("");
+    setCustomStaplesDraft((current) => [...current, match]);
+    setStapleQuery("");
+  }
+
+  function handleRemoveCustomStaple(stapleId) {
+    setCustomStaplesDraft((current) => current.filter((item) => item.id !== stapleId));
+  }
+
+  async function handleSaveStaples() {
+    if (!settings) {
+      return;
+    }
+
+    setIsSaving(true);
+    setErrorMessage("");
+
+    try {
+      const nextSettings = await updateGroupSettings(group.id, {
+        staplesEnabled: settings.staplesEnabled,
+        customStaples: customStaplesDraft.map((item) => item.id),
+      });
+
+      await refreshCandidates(nextSettings);
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "Unable to save custom staples.");
     } finally {
       setIsSaving(false);
     }
@@ -178,6 +274,103 @@ export function GroupDetailPage() {
           )}
         </section>
 
+        <section className="settings-card surface-card">
+          <div className="section-heading">
+            <h2>Staples</h2>
+            <span className="settings-badge">
+              {settings?.staplesEnabled ? "Enabled" : "Disabled"}
+            </span>
+          </div>
+
+          <div className="toggle-row">
+            <div>
+              <h3>Use Group Staples</h3>
+              <p>
+                When enabled, approved staples are treated as effectively unlimited during bundle generation.
+              </p>
+            </div>
+
+            <label
+              className={`toggle-switch ${settings?.staplesEnabled ? "is-active" : ""} ${
+                isSaving ? "is-busy" : ""
+              }`}
+            >
+              <input
+                type="checkbox"
+                aria-label="Use Group Staples"
+                checked={Boolean(settings?.staplesEnabled)}
+                disabled={!settings || settings.viewerRole !== "admin" || isSaving}
+                onChange={handleStaplesToggle}
+              />
+              <span className="toggle-switch__track">
+                <span className="toggle-switch__thumb" />
+              </span>
+            </label>
+          </div>
+
+          {settings?.staplesEnabled && (
+            <div className="staples-panel">
+              <div>
+                <h3>Default Staples Preset</h3>
+                <div className="staple-list" aria-label="Default staples preset">
+                  {settings.defaultStaplesPreset.map((item) => (
+                    <span className="staple-chip staple-chip--default" key={item.id}>
+                      {item.name}
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <h3>Custom Staples</h3>
+                <p className="settings-note">
+                  Add extra ingredients the household agrees to treat like staples.
+                </p>
+                <div className="staple-editor">
+                  <input
+                    className="staple-search"
+                    list="staple-ingredient-suggestions"
+                    placeholder="Search ingredient suggestions"
+                    value={stapleQuery}
+                    onChange={(event) => setStapleQuery(event.target.value)}
+                  />
+                  <datalist id="staple-ingredient-suggestions">
+                    {settings.ingredientCatalog.map((item) => (
+                      <option key={item.id} value={item.name} />
+                    ))}
+                  </datalist>
+                  <button className="button button--dark" type="button" onClick={handleAddCustomStaple}>
+                    Add Staple
+                  </button>
+                </div>
+
+                <div className="staple-list" aria-label="Custom staples list">
+                  {customStaplesDraft.length === 0 ? (
+                    <span className="staple-chip staple-chip--empty">No custom staples yet</span>
+                  ) : (
+                    customStaplesDraft.map((item) => (
+                      <button
+                        className="staple-chip staple-chip--removable"
+                        key={item.id}
+                        type="button"
+                        onClick={() => handleRemoveCustomStaple(item.id)}
+                      >
+                        {item.name} <span aria-hidden="true">x</span>
+                      </button>
+                    ))
+                  )}
+                </div>
+
+                <div className="settings-actions">
+                  <button className="button" type="button" onClick={handleSaveStaples} disabled={isSaving}>
+                    <Check size={18} /> Save Staples
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </section>
+
         <section className="generator-card surface-card">
           <div className="section-heading">
             <h2>Bundle Candidates</h2>
@@ -224,6 +417,12 @@ export function GroupDetailPage() {
                     </div>
 
                     <p className="bundle-rationale">{candidate.rationale}</p>
+
+                    {candidate.assumedStaples?.length > 0 && (
+                      <p className="bundle-staples-note">
+                        Staples assumed: {candidate.assumedStaples.map((item) => item.name).join(", ")}
+                      </p>
+                    )}
 
                     {candidate.missingIngredients.length > 0 && (
                       <section className="missing-items" aria-label={`Missing items for ${candidate.title}`}>

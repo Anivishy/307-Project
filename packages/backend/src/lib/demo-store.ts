@@ -10,8 +10,15 @@ export type GroupRecord = {
   id: string;
   name: string;
   allowMissingIngredients: boolean;
+  staplesEnabled: boolean;
+  customStaples: string[];
   updatedAt: string;
   members: GroupMember[];
+};
+
+export type IngredientCatalogItem = {
+  id: string;
+  name: string;
 };
 
 export type PantryItem = {
@@ -49,6 +56,27 @@ export type BundleTemplate = {
 export const DEMO_ADMIN_USER_ID = "user-admin-1";
 export const DEMO_MEMBER_USER_ID = "user-member-1";
 
+const INGREDIENT_CATALOG: IngredientCatalogItem[] = [
+  { id: "olive-oil", name: "Olive oil" },
+  { id: "butter", name: "Butter" },
+  { id: "salt", name: "Salt" },
+  { id: "pepper", name: "Pepper" },
+  { id: "basil-leaves", name: "Basil leaves" },
+  { id: "thyme", name: "Fresh thyme" },
+  { id: "sesame-oil", name: "Sesame oil" },
+  { id: "parmesan", name: "Parmesan" },
+  { id: "saffron-threads", name: "Saffron threads" },
+  { id: "bread-loaf", name: "Bread loaf" },
+  { id: "tomatoes", name: "Tomatoes" },
+  { id: "garlic-cloves", name: "Garlic" },
+  { id: "pasta", name: "Pasta" },
+  { id: "chicken-fillets", name: "Chicken fillets" },
+  { id: "mushrooms", name: "Mushrooms" },
+  { id: "cream", name: "Cream" },
+];
+
+const DEFAULT_STAPLES_PRESET_IDS = ["olive-oil", "butter", "salt", "pepper"];
+
 type DemoState = {
   groups: Map<string, GroupRecord>;
   pantriesByGroup: Map<string, PantryItem[]>;
@@ -65,6 +93,8 @@ function createDemoState(): DemoState {
         id: groupId,
         name: "Dorm Dinner Crew",
         allowMissingIngredients: false,
+        staplesEnabled: false,
+        customStaples: [],
         updatedAt: "2026-05-11T07:00:00.000Z",
         members: [
           { userId: DEMO_ADMIN_USER_ID, name: "Vinayak", role: "admin" },
@@ -176,6 +206,7 @@ function createDemoState(): DemoState {
             { ingredientId: "tomatoes", name: "Tomatoes", quantity: 3, unit: "whole" },
             { ingredientId: "garlic-cloves", name: "Garlic", quantity: 2, unit: "cloves" },
             { ingredientId: "saffron-threads", name: "Saffron threads", quantity: 1, unit: "tbsp" },
+            { ingredientId: "salt", name: "Salt", quantity: 1, unit: "tsp" },
             { ingredientId: "bread-loaf", name: "Bread loaf", quantity: 1, unit: "loaf" },
           ],
           instructions: [
@@ -183,6 +214,27 @@ function createDemoState(): DemoState {
             "Finish the sauce with saffron threads and serve with warm bread.",
           ],
           rationale: "A pasta-forward bundle with a fancier flavor profile for a weekend group meal.",
+        },
+        {
+          id: "bundle-garden-pasta-board",
+          title: "Garden Pasta Board",
+          courses: [
+            { type: "main", title: "Garlic Garden Pasta" },
+            { type: "side", title: "Toasted Bread Board" },
+          ],
+          ingredientList: [
+            { ingredientId: "pasta", name: "Pasta", quantity: 1, unit: "boxes" },
+            { ingredientId: "tomatoes", name: "Tomatoes", quantity: 2, unit: "whole" },
+            { ingredientId: "garlic-cloves", name: "Garlic", quantity: 2, unit: "cloves" },
+            { ingredientId: "olive-oil", name: "Olive oil", quantity: 2, unit: "tbsp" },
+            { ingredientId: "salt", name: "Salt", quantity: 1, unit: "tsp" },
+            { ingredientId: "bread-loaf", name: "Bread loaf", quantity: 1, unit: "loaf" },
+          ],
+          instructions: [
+            "Boil the pasta and toss it with tomatoes, garlic, and olive oil.",
+            "Season with salt and serve with thick slices of toasted bread.",
+          ],
+          rationale: "A pantry-driven pasta board that works well if the household treats common basics as staples.",
         },
         {
           id: "bundle-bruschetta-board",
@@ -229,14 +281,41 @@ export function getBundleTemplates(groupId: string) {
   return structuredClone(demoState.bundleTemplatesByGroup.get(groupId) ?? []);
 }
 
-export function updateAllowMissingIngredientsSetting(groupId: string, allowMissingIngredients: boolean) {
+export function getIngredientCatalog() {
+  return structuredClone(INGREDIENT_CATALOG);
+}
+
+export function getDefaultStaplesPreset() {
+  return INGREDIENT_CATALOG.filter((item) => DEFAULT_STAPLES_PRESET_IDS.includes(item.id));
+}
+
+export function resolveIngredientIds(ids: string[]) {
+  const idSet = new Set(ids);
+  return INGREDIENT_CATALOG.filter((item) => idSet.has(item.id));
+}
+
+export function updateGroupRecord(
+  groupId: string,
+  updates: Partial<Pick<GroupRecord, "allowMissingIngredients" | "staplesEnabled" | "customStaples">>,
+) {
   const group = demoState.groups.get(groupId);
 
   if (!group) {
     return undefined;
   }
 
-  group.allowMissingIngredients = allowMissingIngredients;
+  if (typeof updates.allowMissingIngredients === "boolean") {
+    group.allowMissingIngredients = updates.allowMissingIngredients;
+  }
+
+  if (typeof updates.staplesEnabled === "boolean") {
+    group.staplesEnabled = updates.staplesEnabled;
+  }
+
+  if (Array.isArray(updates.customStaples)) {
+    group.customStaples = [...new Set(updates.customStaples)];
+  }
+
   group.updatedAt = new Date().toISOString();
   return structuredClone(group);
 }

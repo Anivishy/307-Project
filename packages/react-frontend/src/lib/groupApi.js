@@ -26,10 +26,10 @@ export function getGroupSettings(groupId) {
   return apiFetch(`/api/groups/${groupId}/settings`);
 }
 
-export function updateGroupSettings(groupId, allowMissingIngredients) {
+export function updateGroupSettings(groupId, updates) {
   return apiFetch(`/api/groups/${groupId}/settings`, {
     method: "PATCH",
-    body: JSON.stringify({ allowMissingIngredients }),
+    body: JSON.stringify(updates),
   });
 }
 
