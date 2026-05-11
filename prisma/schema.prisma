@@ -1,0 +1,165 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum GroupRole {
+  OWNER
+  ADMIN
+  MEMBER
+}
+
+enum MenuRequestStatus {
+  PENDING
+  COMPLETED
+  FAILED
+}
+
+enum MealCategory {
+  APPETIZER
+  MAIN
+  SIDE
+  DESSERT
+  DRINK
+  OTHER
+}
+
+model Profile {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email       String   @unique @db.VarChar(320)
+  displayName String?  @map("display_name") @db.VarChar(120)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  ingredients                  Ingredient[]
+  ownedGroups                  Group[]            @relation("GroupOwner")
+  groupMemberships             GroupMember[]
+  menuRequests                 MenuRequest[]
+  contributedRecipeIngredients RecipeIngredient[] @relation("RecipeIngredientSource")
+
+  @@map("profiles")
+}
+
+model Ingredient {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  ownerId   String   @map("owner_id") @db.Uuid
+  name      String   @db.VarChar(120)
+  quantity  Decimal? @db.Decimal(10, 2)
+  unit      String?  @db.VarChar(40)
+  notes     String?  @db.Text
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  owner Profile @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  @@unique([ownerId, name])
+  @@index([ownerId])
+  @@map("ingredients")
+}
+
+model Group {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  ownerId     String   @map("owner_id") @db.Uuid
+  name        String   @db.VarChar(120)
+  description String?  @db.Text
+  inviteCode  String?  @unique @map("invite_code") @db.VarChar(32)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  owner        Profile       @relation("GroupOwner", fields: [ownerId], references: [id], onDelete: Restrict)
+  members      GroupMember[]
+  menuRequests MenuRequest[]
+  menus        Menu[]
+
+  @@index([ownerId])
+  @@map("groups")
+}
+
+model GroupMember {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  groupId   String    @map("group_id") @db.Uuid
+  profileId String    @map("profile_id") @db.Uuid
+  role      GroupRole @default(MEMBER)
+  joinedAt  DateTime  @default(now()) @map("joined_at") @db.Timestamptz(6)
+
+  group   Group   @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, profileId])
+  @@index([profileId])
+  @@map("group_members")
+}
+
+model MenuRequest {
+  id            String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  groupId       String            @map("group_id") @db.Uuid
+  requestedById String            @map("requested_by_id") @db.Uuid
+  prompt        String?           @db.Text
+  cuisine       String?           @db.VarChar(80)
+  mealCount     Int?              @map("meal_count")
+  status        MenuRequestStatus @default(PENDING)
+  createdAt     DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  group       Group    @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  requestedBy Profile  @relation(fields: [requestedById], references: [id], onDelete: Restrict)
+  menu        Menu?
+
+  @@index([groupId, createdAt])
+  @@index([requestedById])
+  @@map("menu_requests")
+}
+
+model Menu {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  groupId   String   @map("group_id") @db.Uuid
+  requestId String?  @unique @map("request_id") @db.Uuid
+  title     String   @db.VarChar(160)
+  summary   String?  @db.Text
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  group   Group        @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  request MenuRequest? @relation(fields: [requestId], references: [id], onDelete: SetNull)
+  recipes Recipe[]
+
+  @@index([groupId, createdAt])
+  @@map("menus")
+}
+
+model Recipe {
+  id           String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  menuId       String       @map("menu_id") @db.Uuid
+  title        String       @db.VarChar(160)
+  category     MealCategory @default(OTHER)
+  instructions String?      @db.Text
+  servings     Int?
+  createdAt    DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  menu        Menu               @relation(fields: [menuId], references: [id], onDelete: Cascade)
+  ingredients RecipeIngredient[]
+
+  @@index([menuId])
+  @@map("recipes")
+}
+
+model RecipeIngredient {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  recipeId      String   @map("recipe_id") @db.Uuid
+  fromProfileId String?  @map("from_profile_id") @db.Uuid
+  name          String   @db.VarChar(120)
+  quantity      Decimal? @db.Decimal(10, 2)
+  unit          String?  @db.VarChar(40)
+  notes         String?  @db.Text
+
+  recipe      Recipe   @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+  fromProfile Profile? @relation("RecipeIngredientSource", fields: [fromProfileId], references: [id], onDelete: SetNull)
+
+  @@index([recipeId])
+  @@index([fromProfileId])
+  @@map("recipe_ingredients")
+}
