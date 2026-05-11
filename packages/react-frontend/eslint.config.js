@@ -1,42 +1,30 @@
 import js from "@eslint/js";
-import { defineConfig, globalIgnores } from "eslint/config";
 import globals from "globals";
-import react from "eslint-plugin-react";
 import reactHooks from "eslint-plugin-react-hooks";
 import reactRefresh from "eslint-plugin-react-refresh";
-import tseslint from "typescript-eslint";
 
-export default defineConfig([
-  globalIgnores(["dist"]),
+export default [
+  { ignores: ["dist"] },
   {
-    files: ["**/*.{ts,tsx}"],
-    extends: [
-      js.configs.recommended,
-      ...tseslint.configs.recommended,
-    ],
+    files: ["**/*.{js,jsx}"],
     languageOptions: {
-      ecmaVersion: "latest",
-      sourceType: "module",
-    },
-  },
-  {
-    files: ["**/*.{tsx,jsx}"],
-    extends: [
-      react.configs.flat.recommended,
-      react.configs.flat["jsx-runtime"],
-      reactHooks.configs.flat["recommended-latest"],
-      reactRefresh.configs.vite,
-    ],
-    languageOptions: {
+      ecmaVersion: 2020,
       globals: globals.browser,
-    },
-    settings: {
-      react: {
-        version: "detect",
+      parserOptions: {
+        ecmaVersion: "latest",
+        ecmaFeatures: { jsx: true },
+        sourceType: "module",
       },
     },
+    plugins: {
+      "react-hooks": reactHooks,
+      "react-refresh": reactRefresh,
+    },
     rules: {
-      "react/prop-types": "off",
+      ...js.configs.recommended.rules,
+      ...reactHooks.configs.recommended.rules,
+      "no-unused-vars": ["error", { varsIgnorePattern: "^[A-Z_]" }],
+      "react-refresh/only-export-components": ["warn", { allowConstantExport: true }],
     },
   },
-]);
+];
