@@ -3,11 +3,13 @@ import { config } from 'dotenv';
 import { resolve } from 'node:path';
 import { PrismaClient } from '../generated/prisma';
 
+// Next.js can reload modules frequently in development, so cache Prisma globally to avoid connection churn.
 const globalForPrisma = globalThis as unknown as {
   prisma?: PrismaClient;
 };
 
 if (!process.env.DATABASE_URL) {
+  // The backend package runs from packages/backend, but the shared env files live at the repo root.
   config({
     path: resolve(process.cwd(), '../../.env'),
     quiet: true

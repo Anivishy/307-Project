@@ -1,18 +1,12 @@
 import { NextResponse } from "next/server";
-import { ApiError } from "../../../../../lib/api-error";
+import { handleApiError } from "../../../../../lib/api-response";
 import { DEMO_ADMIN_USER_ID } from "../../../../../lib/demo-store";
 import { readBundleCandidates } from "../../../../../lib/group-service";
 
-function getRequestUserId(request: Request) {
+function getDemoRequestUserId(request: Request) {
+  // Demo-only fallback: lets the candidate endpoint show an admin view before OTP auth exists.
+  // The service still checks that the resolved user belongs to the requested group.
   return request.headers.get("x-user-id") ?? DEMO_ADMIN_USER_ID;
-}
-
-function handleApiError(error: unknown) {
-  if (error instanceof ApiError) {
-    return NextResponse.json({ error: error.message }, { status: error.statusCode });
-  }
-
-  return NextResponse.json({ error: "Unexpected server error." }, { status: 500 });
 }
 
 export async function GET(
@@ -21,7 +15,7 @@ export async function GET(
 ) {
   try {
     const { groupId } = await params;
-    const payload = readBundleCandidates(groupId, getRequestUserId(request));
+    const payload = readBundleCandidates(groupId, getDemoRequestUserId(request));
     return NextResponse.json(payload);
   } catch (error) {
     return handleApiError(error);

@@ -11,6 +11,8 @@ import {
 } from "./demo-store";
 import { buildValidatedCandidateSet } from "./bundle-validator";
 
+// The group service owns US7/US8 demo behavior: settings reads/writes plus
+// candidate filtering that depends on missing-ingredient and staples settings.
 type ViewerContext = {
   groupId: string;
   groupName: string;
@@ -29,7 +31,7 @@ type GroupSettingsUpdate = {
   customStaples?: string[];
 };
 
-function buildSettingsPayload(groupId: string, userId: string, viewerRole: GroupRole) {
+function buildSettingsPayload(groupId: string, viewerRole: GroupRole) {
   const group = getGroupRecord(groupId);
 
   if (!group) {
@@ -62,6 +64,7 @@ function getViewerContext(groupId: string, userId: string): ViewerContext {
     throw new ApiError(403, "You must belong to the group to access its settings.");
   }
 
+  // Every settings response includes viewerRole so the frontend can hide admin-only controls.
   return {
     groupId: group.id,
     groupName: group.name,
@@ -83,7 +86,7 @@ export function saveGroupSettings(groupId: string, userId: string, updates: Grou
   const context = getViewerContext(groupId, userId);
 
   if (context.viewerRole !== "admin") {
-    throw new ApiError(403, "Only admins can update the missing ingredients setting.");
+    throw new ApiError(403, "Only admins can update group settings.");
   }
 
   if (updates.customStaples) {
@@ -101,7 +104,7 @@ export function saveGroupSettings(groupId: string, userId: string, updates: Grou
     throw new ApiError(404, "Group not found.");
   }
 
-  return buildSettingsPayload(updatedGroup.id, userId, context.viewerRole);
+  return buildSettingsPayload(updatedGroup.id, context.viewerRole);
 }
 
 export function readBundleCandidates(groupId: string, userId: string) {
@@ -112,6 +115,8 @@ export function readBundleCandidates(groupId: string, userId: string) {
     throw new ApiError(404, "Group not found.");
   }
 
+  // Validation happens after loading pantry and templates so the response can include
+  // both visible candidates and the number filtered out by group policy.
   const candidateSet = buildValidatedCandidateSet(group, getBundleTemplates(groupId), getGroupPantry(groupId));
 
   return {

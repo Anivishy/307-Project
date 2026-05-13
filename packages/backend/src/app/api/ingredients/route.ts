@@ -6,6 +6,8 @@ import {
 } from '../../../lib/ingredient-service';
 import { getRequestUserId } from '../../../lib/request-user';
 
+// These routes currently treat "ingredients" as a user's pantry items.
+// A future canonical ingredient database should probably use a separate route name.
 export async function GET(request: Request) {
   try {
     const ingredients = await listIngredients(
@@ -20,6 +22,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
+    // The owner comes from the request header, not the body, so users cannot create pantry items for someone else.
     const ingredient = await createIngredient(
       getRequestUserId(request),
       await request.json()

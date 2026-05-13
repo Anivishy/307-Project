@@ -1,18 +1,12 @@
 import { NextResponse } from "next/server";
-import { ApiError } from "../../../../../lib/api-error";
+import { handleApiError } from "../../../../../lib/api-response";
 import { DEMO_ADMIN_USER_ID } from "../../../../../lib/demo-store";
 import { readGroupSettings, saveGroupSettings } from "../../../../../lib/group-service";
 
-function getRequestUserId(request: Request) {
+function getDemoRequestUserId(request: Request) {
+  // Demo-only fallback: the US7/US8 prototype can be opened without a real auth session.
+  // Database-backed routes use lib/request-user.ts and require a UUID x-user-id header.
   return request.headers.get("x-user-id") ?? DEMO_ADMIN_USER_ID;
-}
-
-function handleApiError(error: unknown) {
-  if (error instanceof ApiError) {
-    return NextResponse.json({ error: error.message }, { status: error.statusCode });
-  }
-
-  return NextResponse.json({ error: "Unexpected server error." }, { status: 500 });
 }
 
 export async function GET(
@@ -21,7 +15,7 @@ export async function GET(
 ) {
   try {
     const { groupId } = await params;
-    const payload = readGroupSettings(groupId, getRequestUserId(request));
+    const payload = readGroupSettings(groupId, getDemoRequestUserId(request));
     return NextResponse.json(payload);
   } catch (error) {
     return handleApiError(error);
@@ -67,7 +61,8 @@ export async function PATCH(
       return NextResponse.json({ error: "No supported settings were provided." }, { status: 400 });
     }
 
-    const payload = saveGroupSettings(groupId, getRequestUserId(request), {
+    // Only pass fields that survived validation; undefined means "do not change this setting."
+    const payload = saveGroupSettings(groupId, getDemoRequestUserId(request), {
       allowMissingIngredients:
         typeof body.allowMissingIngredients === "boolean" ? body.allowMissingIngredients : undefined,
       staplesEnabled: typeof body.staplesEnabled === "boolean" ? body.staplesEnabled : undefined,

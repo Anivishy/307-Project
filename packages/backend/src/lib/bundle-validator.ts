@@ -7,6 +7,8 @@ import {
   type PantryItem,
 } from "./demo-store";
 
+// Candidate validation for US7/US8: apply group missing-ingredient and staples settings
+// before returning bundles to the UI.
 export type MissingIngredientDisclosure = {
   ingredientId: string;
   name: string;
@@ -67,6 +69,7 @@ function buildContributorMapping(
   enabledStapleIds: Set<string>,
 ) {
   if (enabledStapleIds.has(ingredient.ingredientId)) {
+    // Staples are treated as a group-level unlimited source rather than one member's pantry item.
     return [
       {
         userId: "group-staples",

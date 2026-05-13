@@ -1,3 +1,5 @@
+// Temporary in-memory data for the US7/US8 demo routes.
+// Database-backed equivalents should eventually move into Prisma models and services.
 export type GroupRole = "admin" | "member";
 
 export type GroupMember = {
@@ -265,10 +267,12 @@ function createDemoState(): DemoState {
 let demoState = createDemoState();
 
 export function resetDemoState() {
+  // Tests use this to avoid one test's PATCH changing the next test's starting state.
   demoState = createDemoState();
 }
 
 export function getGroupRecord(groupId: string) {
+  // Return clones so route/service code cannot accidentally mutate demo state without updateGroupRecord.
   const group = demoState.groups.get(groupId);
   return group ? structuredClone(group) : undefined;
 }

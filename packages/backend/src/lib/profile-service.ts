@@ -3,6 +3,8 @@ import { ApiError } from './api-error';
 import { prisma } from './prisma';
 import { assertUuid } from './request-user';
 
+// Profile service = user persistence for the SRD's sign-in/session story.
+// Routes stay thin by delegating validation, Prisma calls, and serialization here.
 type ProfileCreateInput = {
   id?: unknown;
   email?: unknown;
@@ -46,6 +48,7 @@ function normalizeOptionalText(
 }
 
 function serializeProfile(profile: Profile) {
+  // Convert Date objects to ISO strings so API responses are plain JSON.
   return {
     id: profile.id,
     email: profile.email,
@@ -88,6 +91,7 @@ export async function createProfile(input: ProfileCreateInput) {
     return serializeProfile(profile);
   } catch (error) {
     if (isPrismaError(error, 'P2002')) {
+      // P2002 is Prisma's unique-constraint error; here it means duplicate email.
       throw new ApiError(
         409,
         'A profile with that email already exists.'

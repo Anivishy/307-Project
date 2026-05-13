@@ -3,6 +3,8 @@ import { ApiError } from './api-error';
 import { prisma } from './prisma';
 import { assertUuid } from './request-user';
 
+// Ingredient service currently models each user's pantry items.
+// The ownerId argument is always supplied by the route from x-user-id, never trusted from request JSON.
 type IngredientCreateInput = {
   name?: unknown;
   quantity?: unknown;
@@ -94,6 +96,7 @@ function normalizeNullableQuantity(value: unknown) {
 }
 
 function serializeIngredient(ingredient: Ingredient) {
+  // Prisma decimals serialize awkwardly; convert them before returning API JSON.
   return {
     id: ingredient.id,
     ownerId: ingredient.ownerId,
@@ -110,6 +113,7 @@ function serializeIngredient(ingredient: Ingredient) {
 }
 
 async function ensureProfileExists(ownerId: string) {
+  // Fail with a clear 404 before relying on a database foreign-key error.
   const profile = await prisma.profile.findUnique({
     where: { id: ownerId },
     select: { id: true }
@@ -156,6 +160,7 @@ export async function createIngredient(
     return serializeIngredient(ingredient);
   } catch (error) {
     if (isPrismaError(error, 'P2002')) {
+      // P2002 maps to @@unique([ownerId, name]) in schema.prisma.
       throw new ApiError(
         409,
         'You already have an ingredient with that name.'

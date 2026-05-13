@@ -6,6 +6,8 @@ import {
 } from '../../../../lib/ingredient-service';
 import { getRequestUserId } from '../../../../lib/request-user';
 
+// PATCH and DELETE are scoped by both ingredientId and the caller's user id.
+// That ownership check is what enforces "users manage their own pantry items."
 export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ ingredientId: string }> }
