@@ -38,7 +38,7 @@ O	4.1 DATA INTEGRITY & SECURITY
 O	4.2 PERFORMANCE & USABILITY
 5.	SYSTEM ARCHITECTURE ................................................................ [PAGE #]
 O	5.1 REST API ENDPOINTS
-O	5.2 DATABASE SCHEMA (MYSQL)
+O	5.2 DATABASE SCHEMA (POSTGRESQL)
 6.	USER INTERFACE (UI) ...................................................................... [PAGE #]
 O	6.1 WIREFRAMES / MOCKUPS
 7.	DATA REQUIREMENTS ..................................................................... [PAGE #]
@@ -435,6 +435,5 @@ ID	REQUIREMENT	LINE OF CODE
 9.	AI USAGE & DISCLOSURE (MANDATORY)
 -	MODEL(S) USED: [E.G., CLAUDE 3.5, GPT-4O]
 -	PROMPTS USED DURING CODING: 
-
 
 
