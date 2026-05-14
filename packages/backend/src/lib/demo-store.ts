@@ -14,6 +14,10 @@ export type GroupRecord = {
   allowMissingIngredients: boolean;
   staplesEnabled: boolean;
   customStaples: string[];
+  pantrySnapshotVersion: number;
+  activeBundleVersion: number;
+  selectedBundleId: string | null;
+  activeReservations: BundleReservation[];
   updatedAt: string;
   members: GroupMember[];
 };
@@ -53,6 +57,16 @@ export type BundleTemplate = {
   ingredientList: BundleIngredient[];
   instructions: string[];
   rationale: string;
+};
+
+export type BundleReservation = {
+  bundleId: string;
+  ingredientId: string;
+  name: string;
+  quantity: number;
+  unit: string;
+  sourceUserId: string;
+  sourceName: string;
 };
 
 export const DEMO_ADMIN_USER_ID = "user-admin-1";
@@ -97,6 +111,10 @@ function createDemoState(): DemoState {
         allowMissingIngredients: false,
         staplesEnabled: false,
         customStaples: [],
+        pantrySnapshotVersion: 3,
+        activeBundleVersion: 1,
+        selectedBundleId: null,
+        activeReservations: [],
         updatedAt: "2026-05-11T07:00:00.000Z",
         members: [
           { userId: DEMO_ADMIN_USER_ID, name: "Vinayak", role: "admin" },
@@ -322,4 +340,39 @@ export function updateGroupRecord(
 
   group.updatedAt = new Date().toISOString();
   return structuredClone(group);
+}
+
+export function bumpPantrySnapshotVersion(groupId: string) {
+  const group = demoState.groups.get(groupId);
+
+  if (!group) {
+    return undefined;
+  }
+
+  group.pantrySnapshotVersion += 1;
+  group.updatedAt = new Date().toISOString();
+  return structuredClone(group);
+}
+
+export function replaceActiveBundle(
+  groupId: string,
+  bundleId: string,
+  activeReservations: BundleReservation[],
+) {
+  const group = demoState.groups.get(groupId);
+
+  if (!group) {
+    return undefined;
+  }
+
+  const releasedBundleId = group.selectedBundleId;
+  group.selectedBundleId = bundleId;
+  group.activeReservations = structuredClone(activeReservations);
+  group.activeBundleVersion += 1;
+  group.updatedAt = new Date().toISOString();
+
+  return {
+    group: structuredClone(group),
+    releasedBundleId,
+  };
 }

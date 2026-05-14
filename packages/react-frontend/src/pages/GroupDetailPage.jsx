@@ -15,6 +15,7 @@ import { groups } from '../data/recipes.js';
 import {
   getBundleCandidates,
   getGroupSettings,
+  selectBundleCandidate,
   updateGroupSettings
 } from '../lib/groupApi.js';
 
@@ -27,6 +28,7 @@ export function GroupDetailPage() {
   const group = groups.find((item) => item.id === groupId);
   const [settings, setSettings] = useState(null);
   const [candidates, setCandidates] = useState([]);
+  const [candidateSet, setCandidateSet] = useState(null);
   const [filteredOutCount, setFilteredOutCount] = useState(0);
   const [
     hardConstraintRejectedCount,
@@ -39,6 +41,22 @@ export function GroupDetailPage() {
     []
   );
   const [stapleQuery, setStapleQuery] = useState('');
+  const [selectionStatus, setSelectionStatus] = useState(null);
+  const [staleCandidate, setStaleCandidate] = useState(null);
+
+  function applyCandidatePayload(candidatePayload) {
+    setCandidates(candidatePayload.candidates);
+    setFilteredOutCount(candidatePayload.filteredOutCandidateCount);
+    setHardConstraintRejectedCount(
+      candidatePayload.hardConstraintRejectedCount ?? 0
+    );
+    setCandidateSet({
+      id: candidatePayload.candidateSetId,
+      generatedAt: candidatePayload.generatedAt,
+      pantrySnapshotVersion: candidatePayload.pantrySnapshotVersion,
+      activeBundleVersion: candidatePayload.activeBundleVersion
+    });
+  }
 
   useEffect(() => {
     if (!group) {
@@ -64,13 +82,7 @@ export function GroupDetailPage() {
 
         setSettings(settingsPayload);
         setCustomStaplesDraft(settingsPayload.customStaples);
-        setCandidates(candidatePayload.candidates);
-        setFilteredOutCount(
-          candidatePayload.filteredOutCandidateCount
-        );
-        setHardConstraintRejectedCount(
-          candidatePayload.hardConstraintRejectedCount ?? 0
-        );
+        applyCandidatePayload(candidatePayload);
       } catch (error) {
         if (!isCancelled) {
           setErrorMessage(
@@ -123,13 +135,7 @@ export function GroupDetailPage() {
     );
     setSettings(nextSettings);
     setCustomStaplesDraft(nextSettings.customStaples);
-    setCandidates(updatedCandidates.candidates);
-    setFilteredOutCount(
-      updatedCandidates.filteredOutCandidateCount
-    );
-    setHardConstraintRejectedCount(
-      updatedCandidates.hardConstraintRejectedCount ?? 0
-    );
+    applyCandidatePayload(updatedCandidates);
   }
 
   async function handleStaplesToggle(event) {
@@ -225,6 +231,65 @@ export function GroupDetailPage() {
           ? error.message
           : 'Unable to save custom staples.'
       );
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  async function handleRefreshCandidates() {
+    setIsSaving(true);
+    setErrorMessage("");
+
+    try {
+      const updatedCandidates = await getBundleCandidates(group.id);
+      applyCandidatePayload(updatedCandidates);
+      setStaleCandidate(null);
+      setSelectionStatus({
+        tone: "success",
+        message: "Candidate set refreshed with the latest pantry and active-bundle versions.",
+      });
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "Unable to refresh candidates.");
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  async function handleSelectCandidate(candidate, force = false) {
+    if (!candidateSet) {
+      return;
+    }
+
+    setIsSaving(true);
+    setErrorMessage("");
+
+    try {
+      const result = await selectBundleCandidate(group.id, {
+        bundleId: candidate.id,
+        pantrySnapshotVersion: candidateSet.pantrySnapshotVersion,
+        activeBundleVersion: candidateSet.activeBundleVersion,
+        force,
+      });
+      const updatedCandidates = await getBundleCandidates(group.id);
+
+      applyCandidatePayload(updatedCandidates);
+      setStaleCandidate(null);
+      setSelectionStatus({
+        tone: "success",
+        message: `${result.selectedBundleTitle} selected. Active bundle version is now ${result.activeBundleVersion}.`,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to select bundle.";
+
+      if (message.toLowerCase().includes("stale")) {
+        setStaleCandidate(candidate);
+        setSelectionStatus({
+          tone: "error",
+          message: "Stale candidate set detected. Refresh before selecting or explicitly confirm after re-checking.",
+        });
+      } else {
+        setErrorMessage(message);
+      }
     } finally {
       setIsSaving(false);
     }
@@ -484,6 +549,44 @@ export function GroupDetailPage() {
                 )}
               </div>
 
+              {candidateSet && (
+                <p className="bundle-version-note">
+                  Candidate set {candidateSet.id}: pantry snapshot v{candidateSet.pantrySnapshotVersion}, active
+                  bundle v{candidateSet.activeBundleVersion}
+                </p>
+              )}
+
+              {selectionStatus && (
+                <p className={`selection-status selection-status--${selectionStatus.tone}`}>
+                  {selectionStatus.message}
+                </p>
+              )}
+
+              {staleCandidate && (
+                <section className="stale-warning" aria-label="Stale candidate warning">
+                  <TriangleAlert size={20} />
+                  <div>
+                    <h3>{staleCandidate.title} needs a version check</h3>
+                    <p>
+                      Another admin or pantry update changed the bundle state after this candidate set was generated.
+                    </p>
+                    <div className="stale-warning__actions">
+                      <button className="button" type="button" onClick={handleRefreshCandidates} disabled={isSaving}>
+                        Refresh Candidates
+                      </button>
+                      <button
+                        className="button button--dark"
+                        type="button"
+                        onClick={() => handleSelectCandidate(staleCandidate, true)}
+                        disabled={isSaving}
+                      >
+                        Confirm Anyway
+                      </button>
+                    </div>
+                  </div>
+                </section>
+              )}
+
               <div className="bundle-grid">
                 {candidates.map((candidate) => (
                   <article
@@ -549,8 +652,13 @@ export function GroupDetailPage() {
                     )}
 
                     <div className="bundle-actions">
-                      <button className="button" type="button">
-                        <Sparkles size={18} /> Review Bundle
+                      <button
+                        className="button"
+                        type="button"
+                        onClick={() => handleSelectCandidate(candidate)}
+                        disabled={isSaving}
+                      >
+                        <Sparkles size={18} /> Select Bundle
                       </button>
                       <Link
                         className="button button--dark"

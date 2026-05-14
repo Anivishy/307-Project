@@ -5,7 +5,9 @@ import {
   getBundleTemplates,
   getGroupPantry,
   getGroupRecord,
+  replaceActiveBundle,
   resolveIngredientIds,
+  type BundleReservation,
   type GroupRole,
   updateGroupRecord
 } from './demo-store';
@@ -22,6 +24,9 @@ type ViewerContext = {
   defaultStaplesPreset: Array<{ id: string; name: string }>;
   customStaples: Array<{ id: string; name: string }>;
   ingredientCatalog: Array<{ id: string; name: string }>;
+  pantrySnapshotVersion: number;
+  activeBundleVersion: number;
+  selectedBundleId: string | null;
   updatedAt: string;
   viewerRole: GroupRole;
 };
@@ -30,6 +35,13 @@ type GroupSettingsUpdate = {
   allowMissingIngredients?: boolean;
   staplesEnabled?: boolean;
   customStaples?: string[];
+};
+
+type BundleSelectionInput = {
+  bundleId?: unknown;
+  pantrySnapshotVersion?: unknown;
+  activeBundleVersion?: unknown;
+  force?: unknown;
 };
 
 function buildSettingsPayload(
@@ -50,6 +62,9 @@ function buildSettingsPayload(
     defaultStaplesPreset: getDefaultStaplesPreset(),
     customStaples: resolveIngredientIds(group.customStaples),
     ingredientCatalog: getIngredientCatalog(),
+    pantrySnapshotVersion: group.pantrySnapshotVersion,
+    activeBundleVersion: group.activeBundleVersion,
+    selectedBundleId: group.selectedBundleId,
     updatedAt: group.updatedAt,
     viewerRole
   };
@@ -85,9 +100,60 @@ function getViewerContext(
     defaultStaplesPreset: getDefaultStaplesPreset(),
     customStaples: resolveIngredientIds(group.customStaples),
     ingredientCatalog: getIngredientCatalog(),
+    pantrySnapshotVersion: group.pantrySnapshotVersion,
+    activeBundleVersion: group.activeBundleVersion,
+    selectedBundleId: group.selectedBundleId,
     updatedAt: group.updatedAt,
     viewerRole: membership.role
   };
+}
+
+function normalizeVersionToken(value: unknown, fieldName: string) {
+  if (
+    typeof value !== 'number' ||
+    !Number.isInteger(value) ||
+    value < 0
+  ) {
+    throw new ApiError(400, `${fieldName} must be a non-negative integer.`);
+  }
+
+  return value;
+}
+
+function normalizeBundleId(value: unknown) {
+  if (typeof value !== 'string' || value.trim().length === 0) {
+    throw new ApiError(400, 'bundleId is required.');
+  }
+
+  return value.trim();
+}
+
+function buildReservations(
+  bundleId: string,
+  candidate: ReturnType<
+    typeof buildValidatedCandidateSet
+  >['candidates'][number]
+) {
+  const reservations: BundleReservation[] = [];
+
+  for (const ingredient of candidate.ingredientList) {
+    const allocations =
+      candidate.contributorMapping[ingredient.ingredientId] ?? [];
+
+    for (const allocation of allocations) {
+      reservations.push({
+        bundleId,
+        ingredientId: ingredient.ingredientId,
+        name: ingredient.name,
+        quantity: allocation.quantity,
+        unit: allocation.unit,
+        sourceUserId: allocation.userId,
+        sourceName: allocation.userName
+      });
+    }
+  }
+
+  return reservations;
 }
 
 export function readGroupSettings(
@@ -162,6 +228,92 @@ export function readBundleCandidates(
 
   return {
     ...context,
-    ...candidateSet
+    candidateSetId: `${group.id}:${group.pantrySnapshotVersion}:${group.activeBundleVersion}`,
+    generatedAt: new Date().toISOString(),
+    ...candidateSet,
+    candidates: candidateSet.candidates.map((candidate) => ({
+      ...candidate,
+      pantrySnapshotVersion: group.pantrySnapshotVersion,
+      activeBundleVersion: group.activeBundleVersion,
+      isSelected: candidate.id === group.selectedBundleId
+    }))
+  };
+}
+
+export function selectBundleCandidate(
+  groupId: string,
+  userId: string,
+  input: BundleSelectionInput
+) {
+  const context = getViewerContext(groupId, userId);
+
+  if (context.viewerRole !== 'admin') {
+    throw new ApiError(403, 'Only admins can select the active bundle.');
+  }
+
+  const group = getGroupRecord(groupId);
+
+  if (!group) {
+    throw new ApiError(404, 'Group not found.');
+  }
+
+  const bundleId = normalizeBundleId(input.bundleId);
+  const pantrySnapshotVersion = normalizeVersionToken(
+    input.pantrySnapshotVersion,
+    'pantrySnapshotVersion'
+  );
+  const activeBundleVersion = normalizeVersionToken(
+    input.activeBundleVersion,
+    'activeBundleVersion'
+  );
+  const isForced = input.force === true;
+  const isStale =
+    pantrySnapshotVersion !== group.pantrySnapshotVersion ||
+    activeBundleVersion !== group.activeBundleVersion;
+
+  if (isStale && !isForced) {
+    throw new ApiError(
+      409,
+      'Candidate set is stale. Refresh or explicitly confirm before selecting.'
+    );
+  }
+
+  const memberConstraints = listConstraintsForUsers(
+    group.members.map((member) => member.userId)
+  );
+  const candidateSet = buildValidatedCandidateSet(
+    group,
+    getBundleTemplates(groupId),
+    getGroupPantry(groupId),
+    memberConstraints
+  );
+  const candidate = candidateSet.candidates.find((item) => item.id === bundleId);
+
+  if (!candidate) {
+    throw new ApiError(
+      404,
+      'Bundle candidate not found or no longer valid.'
+    );
+  }
+
+  const result = replaceActiveBundle(
+    groupId,
+    bundleId,
+    buildReservations(bundleId, candidate)
+  );
+
+  if (!result) {
+    throw new ApiError(404, 'Group not found.');
+  }
+
+  return {
+    groupId,
+    selectedBundleId: bundleId,
+    selectedBundleTitle: candidate.title,
+    releasedBundleId: result.releasedBundleId,
+    pantrySnapshotVersion: result.group.pantrySnapshotVersion,
+    activeBundleVersion: result.group.activeBundleVersion,
+    reservationCount: result.group.activeReservations.length,
+    forced: isForced
   };
 }
