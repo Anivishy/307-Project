@@ -110,3 +110,33 @@ export async function readProfile(profileId: string) {
 
   return serializeProfile(profile);
 }
+
+export async function findOrCreateProfileForEmail(input: ProfileCreateInput) {
+  if (
+    typeof input.email !== 'string' ||
+    !EMAIL_REGEX.test(input.email.trim())
+  ) {
+    throw new ApiError(
+      400,
+      'email must be a valid email address.'
+    );
+  }
+
+  const email = input.email.trim().toLowerCase();
+  const displayName = normalizeOptionalText(
+    input.displayName,
+    'displayName',
+    120
+  );
+
+  const profile = await prisma.profile.upsert({
+    where: { email },
+    update: displayName ? { displayName } : {},
+    create: {
+      email,
+      displayName
+    }
+  });
+
+  return serializeProfile(profile);
+}
