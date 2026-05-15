@@ -1,183 +1,217 @@
 import {
-  getDefaultStaplesPreset,
-  resolveIngredientIds,
-  type BundleIngredient,
-  type BundleTemplate,
-  type GroupRecord,
-  type PantryItem,
-} from "./demo-store";
+  getDefaultStaples,
+  getIngredientsById,
+  type IngredientNeed,
+  type Bundle,
+  type DemoGroup,
+  type PantryItem
+} from './demo-store';
 
 // Candidate validation for US7/US8: apply group missing-ingredient and staples settings
 // before returning bundles to the UI.
-export type MissingIngredientDisclosure = {
+export type MissingIngredient = {
   ingredientId: string;
   name: string;
   quantityNeeded: number;
   unit: string;
 };
 
-export type ContributorAllocation = {
+export type Contribution = {
   userId: string;
   userName: string;
   quantity: number;
   unit: string;
 };
 
-export type ValidationReport = {
+export type CandidateCheck = {
   isValid: boolean;
-  reason: "ok" | "missing_ingredients";
-  missingIngredients: MissingIngredientDisclosure[];
+  reason: 'ok' | 'missing_ingredients';
+  missingIngredients: MissingIngredient[];
 };
 
-export type ValidatedBundleCandidate = BundleTemplate & {
-  contributorMapping: Record<string, ContributorAllocation[]>;
-  missingIngredients: MissingIngredientDisclosure[];
+export type BundleCandidate = Bundle & {
+  contributorMapping: Record<string, Contribution[]>;
+  missingIngredients: MissingIngredient[];
   assumedStaples: Array<{ ingredientId: string; name: string }>;
-  validationReport: ValidationReport;
+  validationReport: CandidateCheck;
 };
 
-export type ValidatedCandidateSet = {
-  candidates: ValidatedBundleCandidate[];
+export type CandidateList = {
+  candidates: BundleCandidate[];
   filteredOutCandidateCount: number;
 };
 
-function buildIngredientDisclosure(ingredient: BundleIngredient): MissingIngredientDisclosure {
+function missingIngredientFrom(
+  need: IngredientNeed
+): MissingIngredient {
   return {
-    ingredientId: ingredient.ingredientId,
-    name: ingredient.name,
-    quantityNeeded: ingredient.quantity,
-    unit: ingredient.unit,
+    ingredientId: need.ingredientId,
+    name: need.name,
+    quantityNeeded: need.quantity,
+    unit: need.unit
   };
 }
 
-function getEnabledStapleIds(group: GroupRecord) {
+function getStapleIds(group: DemoGroup) {
   if (!group.staplesEnabled) {
     return new Set<string>();
   }
 
   const stapleIds = [
-    ...getDefaultStaplesPreset().map((item) => item.id),
-    ...resolveIngredientIds(group.customStaples).map((item) => item.id),
+    ...getDefaultStaples().map((item) => item.id),
+    ...getIngredientsById(group.customStaples).map(
+      (item) => item.id
+    )
   ];
 
   return new Set(stapleIds);
 }
 
-function buildContributorMapping(
-  ingredient: BundleIngredient,
+function findContributors(
+  need: IngredientNeed,
   pantry: PantryItem[],
-  enabledStapleIds: Set<string>,
+  stapleIds: Set<string>
 ) {
-  if (enabledStapleIds.has(ingredient.ingredientId)) {
+  if (stapleIds.has(need.ingredientId)) {
     // Staples are treated as a group-level unlimited source rather than one member's pantry item.
     return [
       {
-        userId: "group-staples",
-        userName: "Group staples",
-        quantity: ingredient.quantity,
-        unit: ingredient.unit,
-      },
+        userId: 'group-staples',
+        userName: 'Group staples',
+        quantity: need.quantity,
+        unit: need.unit
+      }
     ];
   }
 
-  const matchingItems = pantry
-    .filter((item) => item.ingredientId === ingredient.ingredientId && item.unit === ingredient.unit)
-    .sort((left, right) => left.ownerName.localeCompare(right.ownerName));
+  const matchingPantry = pantry
+    .filter(
+      (item) =>
+        item.ingredientId === need.ingredientId &&
+        item.unit === need.unit
+    )
+    .sort((left, right) =>
+      left.ownerName.localeCompare(right.ownerName)
+    );
 
-  let remaining = ingredient.quantity;
-  const allocations: ContributorAllocation[] = [];
+  let remaining = need.quantity;
+  const contributors: Contribution[] = [];
 
-  for (const item of matchingItems) {
+  for (const item of matchingPantry) {
     if (remaining <= 0) {
       break;
     }
 
-    const allocationQuantity = Math.min(item.quantity, remaining);
-    allocations.push({
+    const amount = Math.min(item.quantity, remaining);
+    contributors.push({
       userId: item.ownerUserId,
       userName: item.ownerName,
-      quantity: allocationQuantity,
-      unit: item.unit,
+      quantity: amount,
+      unit: item.unit
     });
-    remaining -= allocationQuantity;
+    remaining -= amount;
   }
 
-  return allocations;
+  return contributors;
 }
 
-function validateBundleCandidate(
-  group: GroupRecord,
-  template: BundleTemplate,
+function checkBundle(
+  group: DemoGroup,
+  bundle: Bundle,
   pantry: PantryItem[],
-  allowMissingIngredients: boolean,
-): { visible: boolean; candidate: ValidatedBundleCandidate } {
-  const enabledStapleIds = getEnabledStapleIds(group);
+  allowMissingIngredients: boolean
+): { visible: boolean; candidate: BundleCandidate } {
+  const stapleIds = getStapleIds(group);
   const contributorMapping = Object.fromEntries(
-    template.ingredientList.map((ingredient) => [
-      ingredient.ingredientId,
-      buildContributorMapping(ingredient, pantry, enabledStapleIds),
-    ]),
+    bundle.ingredientList.map((need) => [
+      need.ingredientId,
+      findContributors(need, pantry, stapleIds)
+    ])
   );
 
-  const assumedStaples = template.ingredientList
-    .filter((ingredient) => enabledStapleIds.has(ingredient.ingredientId))
-    .map((ingredient) => ({
-      ingredientId: ingredient.ingredientId,
-      name: ingredient.name,
+  const assumedStaples = bundle.ingredientList
+    .filter((need) => stapleIds.has(need.ingredientId))
+    .map((need) => ({
+      ingredientId: need.ingredientId,
+      name: need.name
     }));
 
-  const missingIngredients = template.ingredientList
-    .filter((ingredient) => {
-      if (enabledStapleIds.has(ingredient.ingredientId)) {
+  const missingIngredients = bundle.ingredientList
+    .filter((need) => {
+      if (stapleIds.has(need.ingredientId)) {
         return false;
       }
 
-      const matchingQuantity = pantry
-        .filter((item) => item.ingredientId === ingredient.ingredientId && item.unit === ingredient.unit)
+      const available = pantry
+        .filter(
+          (item) =>
+            item.ingredientId === need.ingredientId &&
+            item.unit === need.unit
+        )
         .reduce((sum, item) => sum + item.quantity, 0);
 
-      return matchingQuantity < ingredient.quantity;
+      return available < need.quantity;
     })
-    .map(buildIngredientDisclosure);
+    .map(missingIngredientFrom);
 
-  const validationReport: ValidationReport = {
-    isValid: allowMissingIngredients || missingIngredients.length === 0,
-    reason: missingIngredients.length === 0 ? "ok" : "missing_ingredients",
-    missingIngredients,
+  const check: CandidateCheck = {
+    isValid:
+      allowMissingIngredients ||
+      missingIngredients.length === 0,
+    reason:
+      missingIngredients.length === 0
+        ? 'ok'
+        : 'missing_ingredients',
+    missingIngredients
   };
 
-  const candidate: ValidatedBundleCandidate = {
-    ...template,
+  const candidate: BundleCandidate = {
+    ...bundle,
     contributorMapping,
     missingIngredients,
     assumedStaples,
-    validationReport,
+    validationReport: check,
     rationale: [
-      template.rationale,
+      bundle.rationale,
       assumedStaples.length > 0
-        ? `Assumed staples: ${assumedStaples.map((item) => item.name).join(", ")}.`
-        : "",
+        ? `Assumed staples: ${assumedStaples.map((item) => item.name).join(', ')}.`
+        : '',
       allowMissingIngredients && missingIngredients.length > 0
-        ? "Missing items are disclosed so the group can decide whether shopping is worth it."
-        : "",
+        ? 'Missing items are disclosed so the group can decide whether shopping is worth it.'
+        : ''
     ]
       .filter(Boolean)
-      .join(" "),
+      .join(' ')
   };
 
   return {
-    visible: allowMissingIngredients || missingIngredients.length === 0,
-    candidate,
+    visible:
+      allowMissingIngredients ||
+      missingIngredients.length === 0,
+    candidate
   };
 }
 
-export function buildValidatedCandidateSet(group: GroupRecord, templates: BundleTemplate[], pantry: PantryItem[]): ValidatedCandidateSet {
-  const results = templates.map((template) =>
-    validateBundleCandidate(group, template, pantry, group.allowMissingIngredients),
+export function buildCandidateList(
+  group: DemoGroup,
+  bundles: Bundle[],
+  pantry: PantryItem[]
+): CandidateList {
+  const checkedBundles = bundles.map((bundle) =>
+    checkBundle(
+      group,
+      bundle,
+      pantry,
+      group.allowMissingIngredients
+    )
   );
 
   return {
-    candidates: results.filter((result) => result.visible).map((result) => result.candidate),
-    filteredOutCandidateCount: results.filter((result) => !result.visible).length,
+    candidates: checkedBundles
+      .filter((result) => result.visible)
+      .map((result) => result.candidate),
+    filteredOutCandidateCount: checkedBundles.filter(
+      (result) => !result.visible
+    ).length
   };
 }

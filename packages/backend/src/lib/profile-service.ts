@@ -1,28 +1,91 @@
 import type { Profile } from '../generated/prisma';
-import { ApiError } from './api-error';
+import { ApiError, isPrismaError } from './api-error';
 import { prisma } from './prisma';
 import { assertUuid } from './request-user';
 
-// Profile service = user persistence for the SRD's sign-in/session story.
-// Routes stay thin by delegating validation, Prisma calls, and serialization here.
-type ProfileCreateInput = {
+type ProfileRequestBody = {
   id?: unknown;
   email?: unknown;
   displayName?: unknown;
 };
 
+type NewProfile = {
+  id?: string;
+  email: string;
+  displayName?: string;
+};
+
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-function isPrismaError(error: unknown, code: string) {
-  return (
-    typeof error === 'object' &&
-    error !== null &&
-    'code' in error &&
-    error.code === code
-  );
+export async function createProfile(input: ProfileRequestBody) {
+  const fields = readNewProfile(input);
+
+  try {
+    const profile = await prisma.profile.create({
+      data: fields
+    });
+
+    return formatProfile(profile);
+  } catch (error) {
+    if (isPrismaError(error, 'P2002')) {
+      throw new ApiError(
+        409,
+        'A profile with that email already exists.'
+      );
+    }
+
+    throw error;
+  }
 }
 
-function normalizeOptionalText(
+export async function getProfile(profileId: string) {
+  assertUuid(profileId, 'profileId');
+
+  const profile = await prisma.profile.findUnique({
+    where: { id: profileId }
+  });
+
+  if (!profile) {
+    throw new ApiError(404, 'Profile not found.');
+  }
+
+  return formatProfile(profile);
+}
+
+function readNewProfile(input: ProfileRequestBody): NewProfile {
+  if (
+    typeof input.email !== 'string' ||
+    !EMAIL_REGEX.test(input.email.trim())
+  ) {
+    throw new ApiError(
+      400,
+      'email must be a valid email address.'
+    );
+  }
+
+  const fields: NewProfile = {
+    email: input.email.trim().toLowerCase()
+  };
+  const id = readOptionalText(input.id, 'id', 36);
+  const displayName = readOptionalText(
+    input.displayName,
+    'displayName',
+    120
+  );
+
+  if (id) {
+    assertUuid(id, 'id');
+    fields.id = id;
+  }
+
+  if (displayName) {
+    fields.displayName = displayName;
+  }
+
+  return fields;
+}
+
+function readOptionalText(
   value: unknown,
   fieldName: string,
   maxLength: number
@@ -35,20 +98,18 @@ function normalizeOptionalText(
     throw new ApiError(400, `${fieldName} must be a string.`);
   }
 
-  const trimmed = value.trim();
-
-  if (trimmed.length > maxLength) {
+  const text = value.trim();
+  if (text.length > maxLength) {
     throw new ApiError(
       400,
       `${fieldName} must be ${maxLength} characters or fewer.`
     );
   }
 
-  return trimmed || undefined;
+  return text || undefined;
 }
 
-function serializeProfile(profile: Profile) {
-  // Convert Date objects to ISO strings so API responses are plain JSON.
+function formatProfile(profile: Profile) {
   return {
     id: profile.id,
     email: profile.email,
@@ -56,62 +117,4 @@ function serializeProfile(profile: Profile) {
     createdAt: profile.createdAt.toISOString(),
     updatedAt: profile.updatedAt.toISOString()
   };
-}
-
-export async function createProfile(input: ProfileCreateInput) {
-  if (
-    typeof input.email !== 'string' ||
-    !EMAIL_REGEX.test(input.email.trim())
-  ) {
-    throw new ApiError(
-      400,
-      'email must be a valid email address.'
-    );
-  }
-
-  const id = normalizeOptionalText(input.id, 'id', 36);
-
-  if (id) {
-    assertUuid(id, 'id');
-  }
-
-  try {
-    const profile = await prisma.profile.create({
-      data: {
-        ...(id ? { id } : {}),
-        email: input.email.trim().toLowerCase(),
-        displayName: normalizeOptionalText(
-          input.displayName,
-          'displayName',
-          120
-        )
-      }
-    });
-
-    return serializeProfile(profile);
-  } catch (error) {
-    if (isPrismaError(error, 'P2002')) {
-      // P2002 is Prisma's unique-constraint error; here it means duplicate email.
-      throw new ApiError(
-        409,
-        'A profile with that email already exists.'
-      );
-    }
-
-    throw error;
-  }
-}
-
-export async function readProfile(profileId: string) {
-  assertUuid(profileId, 'profileId');
-
-  const profile = await prisma.profile.findUnique({
-    where: { id: profileId }
-  });
-
-  if (!profile) {
-    throw new ApiError(404, 'Profile not found.');
-  }
-
-  return serializeProfile(profile);
 }
