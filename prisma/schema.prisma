@@ -35,7 +35,7 @@ model Profile {
   createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  ingredients                  Ingredient[]
+  pantryItems                  PantryItem[]
   ownedGroups                  Group[]            @relation("GroupOwner")
   groupMemberships             GroupMember[]
   menuRequests                 MenuRequest[]
@@ -44,21 +44,37 @@ model Profile {
   @@map("profiles")
 }
 
-model Ingredient {
-  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  ownerId   String   @map("owner_id") @db.Uuid
-  name      String   @db.VarChar(120)
-  quantity  Decimal? @db.Decimal(10, 2)
-  unit      String?  @db.VarChar(40)
-  notes     String?  @db.Text
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+model IngredientCatalog {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name         String   @unique @db.VarChar(120)
+  category     String?  @db.VarChar(80)
+  defaultUnit  String   @map("default_unit") @db.VarChar(40)
+  allowedUnits String[] @map("allowed_units")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  owner Profile @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  pantryItems PantryItem[]
 
-  @@unique([ownerId, name])
+  @@map("ingredient_catalog")
+}
+
+model PantryItem {
+  id                  String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  ownerId             String   @map("owner_id") @db.Uuid
+  ingredientCatalogId String   @map("ingredient_catalog_id") @db.Uuid
+  quantity            Decimal  @db.Decimal(10, 2)
+  unit                String   @db.VarChar(40)
+  notes               String?  @db.Text
+  createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  owner      Profile           @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  ingredient IngredientCatalog @relation(fields: [ingredientCatalogId], references: [id], onDelete: Restrict)
+
+  @@unique([ownerId, ingredientCatalogId, unit])
   @@index([ownerId])
-  @@map("ingredients")
+  @@index([ingredientCatalogId])
+  @@map("pantry_items")
 }
 
 model Group {

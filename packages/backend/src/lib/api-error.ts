@@ -4,7 +4,16 @@ export class ApiError extends Error {
 
   constructor(statusCode: number, message: string) {
     super(message);
-    this.name = "ApiError";
+    this.name = 'ApiError';
     this.statusCode = statusCode;
   }
+}
+
+export function isPrismaError(error: unknown, code: string) {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'code' in error &&
+    error.code === code
+  );
 }

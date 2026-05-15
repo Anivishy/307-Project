@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
 import { handleApiError } from '../../../../lib/api-response';
 import {
-  deleteIngredient,
-  updateIngredient
+  deletePantryItem,
+  updatePantryItem
 } from '../../../../lib/ingredient-service';
 import { getRequestUserId } from '../../../../lib/request-user';
 
@@ -13,14 +13,14 @@ export async function PATCH(
   { params }: { params: Promise<{ ingredientId: string }> }
 ) {
   try {
-    const { ingredientId } = await params;
-    const ingredient = await updateIngredient(
+    const { ingredientId: pantryItemId } = await params;
+    const pantryItem = await updatePantryItem(
       getRequestUserId(request),
-      ingredientId,
+      pantryItemId,
       await request.json()
     );
 
-    return NextResponse.json(ingredient);
+    return NextResponse.json(pantryItem);
   } catch (error) {
     return handleApiError(error);
   }
@@ -31,10 +31,10 @@ export async function DELETE(
   { params }: { params: Promise<{ ingredientId: string }> }
 ) {
   try {
-    const { ingredientId } = await params;
-    await deleteIngredient(
+    const { ingredientId: pantryItemId } = await params;
+    await deletePantryItem(
       getRequestUserId(request),
-      ingredientId
+      pantryItemId
     );
 
     return new Response(null, { status: 204 });
