@@ -1,17 +1,19 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse } from 'next/server';
 
-import { findMissingIngredientIds } from "@/lib/constraints/ingredients";
-import { parseConstraintsPayload } from "@/lib/constraints/normalize";
+import { findMissingIngredientIds } from '@/lib/constraints/ingredients';
+import { parseConstraintsPayload } from '@/lib/constraints/normalize';
 import {
-  getUserConstraints,
-  patchUserConstraints,
-  replaceUserConstraints,
-} from "@/lib/constraints/store";
-import type { UserConstraintsInput } from "@/lib/constraints/types";
-import { getCurrentUserId } from "@/lib/http/auth";
-import { errorResponse } from "@/lib/http/responses";
+  patchProfileConstraints,
+  readProfileConstraints,
+  replaceProfileConstraints
+} from '@/lib/profile-constraints-service';
+import type { UserConstraintsInput } from '@/lib/constraints/types';
+import { getCurrentUserId } from '@/lib/http/auth';
+import { errorResponse } from '@/lib/http/responses';
 
-async function readJson(request: NextRequest): Promise<unknown> {
+async function readJson(
+  request: NextRequest
+): Promise<unknown> {
   try {
     return await request.json();
   } catch {
@@ -19,22 +21,28 @@ async function readJson(request: NextRequest): Promise<unknown> {
   }
 }
 
-function requireUserId(request: NextRequest): string | NextResponse {
+function requireUserId(
+  request: NextRequest
+): string | NextResponse {
   const userId = getCurrentUserId(request);
 
   if (!userId) {
     return errorResponse(
       401,
-      "unauthenticated",
-      "Profile constraints require an authenticated user.",
+      'unauthenticated',
+      'Profile constraints require an authenticated user.'
     );
   }
 
   return userId;
 }
 
-function validateNeverInclude(input: UserConstraintsInput): NextResponse | null {
-  const missingIngredientIds = findMissingIngredientIds(input.neverIncludeIngredientIds ?? []);
+function validateNeverInclude(
+  input: UserConstraintsInput
+): NextResponse | null {
+  const missingIngredientIds = findMissingIngredientIds(
+    input.neverIncludeIngredientIds ?? []
+  );
 
   if (missingIngredientIds.length === 0) {
     return null;
@@ -42,35 +50,45 @@ function validateNeverInclude(input: UserConstraintsInput): NextResponse | null 
 
   return errorResponse(
     400,
-    "invalidIngredientIds",
-    "neverIncludeIngredientIds contains ids that do not exist.",
-    { invalidIngredientIds: missingIngredientIds },
+    'invalidIngredientIds',
+    'neverIncludeIngredientIds contains ids that do not exist.',
+    { invalidIngredientIds: missingIngredientIds }
   );
 }
 
 export async function GET(request: NextRequest) {
   const userId = requireUserId(request);
 
-  if (typeof userId !== "string") {
+  if (typeof userId !== 'string') {
     return userId;
   }
 
-  return NextResponse.json({ constraints: getUserConstraints(userId) });
+  return NextResponse.json({
+    constraints: await readProfileConstraints(userId)
+  });
 }
 
 export async function POST(request: NextRequest) {
   const userId = requireUserId(request);
 
-  if (typeof userId !== "string") {
+  if (typeof userId !== 'string') {
     return userId;
   }
 
-  const parsed = parseConstraintsPayload(await readJson(request), { partial: false });
+  const parsed = parseConstraintsPayload(
+    await readJson(request),
+    { partial: false }
+  );
 
   if (!parsed.ok) {
-    return errorResponse(400, "invalidConstraints", "Invalid constraints payload.", {
-      issues: parsed.issues,
-    });
+    return errorResponse(
+      400,
+      'invalidConstraints',
+      'Invalid constraints payload.',
+      {
+        issues: parsed.issues
+      }
+    );
   }
 
   const ingredientError = validateNeverInclude(parsed.value);
@@ -79,22 +97,35 @@ export async function POST(request: NextRequest) {
     return ingredientError;
   }
 
-  return NextResponse.json({ constraints: replaceUserConstraints(userId, parsed.value) });
+  return NextResponse.json({
+    constraints: await replaceProfileConstraints(
+      userId,
+      parsed.value
+    )
+  });
 }
 
 export async function PATCH(request: NextRequest) {
   const userId = requireUserId(request);
 
-  if (typeof userId !== "string") {
+  if (typeof userId !== 'string') {
     return userId;
   }
 
-  const parsed = parseConstraintsPayload(await readJson(request), { partial: true });
+  const parsed = parseConstraintsPayload(
+    await readJson(request),
+    { partial: true }
+  );
 
   if (!parsed.ok) {
-    return errorResponse(400, "invalidConstraints", "Invalid constraints payload.", {
-      issues: parsed.issues,
-    });
+    return errorResponse(
+      400,
+      'invalidConstraints',
+      'Invalid constraints payload.',
+      {
+        issues: parsed.issues
+      }
+    );
   }
 
   const ingredientError = validateNeverInclude(parsed.value);
@@ -103,5 +134,10 @@ export async function PATCH(request: NextRequest) {
     return ingredientError;
   }
 
-  return NextResponse.json({ constraints: patchUserConstraints(userId, parsed.value) });
+  return NextResponse.json({
+    constraints: await patchProfileConstraints(
+      userId,
+      parsed.value
+    )
+  });
 }

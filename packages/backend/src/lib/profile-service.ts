@@ -53,6 +53,9 @@ function serializeProfile(profile: Profile) {
     id: profile.id,
     email: profile.email,
     displayName: profile.displayName,
+    allergies: profile.allergies,
+    medicalRestrictions: profile.medicalRestrictions,
+    neverIncludeIngredientIds: profile.neverIncludeIngredientIds,
     createdAt: profile.createdAt.toISOString(),
     updatedAt: profile.updatedAt.toISOString()
   };

@@ -4,8 +4,13 @@ import {
   type BundleIngredient,
   type BundleTemplate,
   type GroupRecord,
-  type PantryItem,
-} from "./demo-store";
+  type PantryItem
+} from './demo-store';
+import type {
+  ConstraintViolation,
+  UserConstraints
+} from './constraints/types';
+import { validateHardConstraints } from './constraints/validator';
 
 // Candidate validation for US7/US8: apply group missing-ingredient and staples settings
 // before returning bundles to the UI.
@@ -25,13 +30,19 @@ export type ContributorAllocation = {
 
 export type ValidationReport = {
   isValid: boolean;
-  reason: "ok" | "missing_ingredients";
+  reason:
+    | 'ok'
+    | 'missing_ingredients'
+    | 'hard_constraints'
+    | 'missing_ingredients_and_hard_constraints';
   missingIngredients: MissingIngredientDisclosure[];
+  hardConstraintViolations: ConstraintViolation[];
 };
 
 export type ValidatedBundleCandidate = BundleTemplate & {
   contributorMapping: Record<string, ContributorAllocation[]>;
   missingIngredients: MissingIngredientDisclosure[];
+  hardConstraintViolations: ConstraintViolation[];
   assumedStaples: Array<{ ingredientId: string; name: string }>;
   validationReport: ValidationReport;
 };
@@ -39,14 +50,17 @@ export type ValidatedBundleCandidate = BundleTemplate & {
 export type ValidatedCandidateSet = {
   candidates: ValidatedBundleCandidate[];
   filteredOutCandidateCount: number;
+  hardConstraintRejectedCount: number;
 };
 
-function buildIngredientDisclosure(ingredient: BundleIngredient): MissingIngredientDisclosure {
+function buildIngredientDisclosure(
+  ingredient: BundleIngredient
+): MissingIngredientDisclosure {
   return {
     ingredientId: ingredient.ingredientId,
     name: ingredient.name,
     quantityNeeded: ingredient.quantity,
-    unit: ingredient.unit,
+    unit: ingredient.unit
   };
 }
 
@@ -57,7 +71,9 @@ function getEnabledStapleIds(group: GroupRecord) {
 
   const stapleIds = [
     ...getDefaultStaplesPreset().map((item) => item.id),
-    ...resolveIngredientIds(group.customStaples).map((item) => item.id),
+    ...resolveIngredientIds(group.customStaples).map(
+      (item) => item.id
+    )
   ];
 
   return new Set(stapleIds);
@@ -66,23 +82,29 @@ function getEnabledStapleIds(group: GroupRecord) {
 function buildContributorMapping(
   ingredient: BundleIngredient,
   pantry: PantryItem[],
-  enabledStapleIds: Set<string>,
+  enabledStapleIds: Set<string>
 ) {
   if (enabledStapleIds.has(ingredient.ingredientId)) {
     // Staples are treated as a group-level unlimited source rather than one member's pantry item.
     return [
       {
-        userId: "group-staples",
-        userName: "Group staples",
+        userId: 'group-staples',
+        userName: 'Group staples',
         quantity: ingredient.quantity,
-        unit: ingredient.unit,
-      },
+        unit: ingredient.unit
+      }
     ];
   }
 
   const matchingItems = pantry
-    .filter((item) => item.ingredientId === ingredient.ingredientId && item.unit === ingredient.unit)
-    .sort((left, right) => left.ownerName.localeCompare(right.ownerName));
+    .filter(
+      (item) =>
+        item.ingredientId === ingredient.ingredientId &&
+        item.unit === ingredient.unit
+    )
+    .sort((left, right) =>
+      left.ownerName.localeCompare(right.ownerName)
+    );
 
   let remaining = ingredient.quantity;
   const allocations: ContributorAllocation[] = [];
@@ -92,12 +114,15 @@ function buildContributorMapping(
       break;
     }
 
-    const allocationQuantity = Math.min(item.quantity, remaining);
+    const allocationQuantity = Math.min(
+      item.quantity,
+      remaining
+    );
     allocations.push({
       userId: item.ownerUserId,
       userName: item.ownerName,
       quantity: allocationQuantity,
-      unit: item.unit,
+      unit: item.unit
     });
     remaining -= allocationQuantity;
   }
@@ -110,20 +135,27 @@ function validateBundleCandidate(
   template: BundleTemplate,
   pantry: PantryItem[],
   allowMissingIngredients: boolean,
+  userConstraints: UserConstraints[]
 ): { visible: boolean; candidate: ValidatedBundleCandidate } {
   const enabledStapleIds = getEnabledStapleIds(group);
   const contributorMapping = Object.fromEntries(
     template.ingredientList.map((ingredient) => [
       ingredient.ingredientId,
-      buildContributorMapping(ingredient, pantry, enabledStapleIds),
-    ]),
+      buildContributorMapping(
+        ingredient,
+        pantry,
+        enabledStapleIds
+      )
+    ])
   );
 
   const assumedStaples = template.ingredientList
-    .filter((ingredient) => enabledStapleIds.has(ingredient.ingredientId))
+    .filter((ingredient) =>
+      enabledStapleIds.has(ingredient.ingredientId)
+    )
     .map((ingredient) => ({
       ingredientId: ingredient.ingredientId,
-      name: ingredient.name,
+      name: ingredient.name
     }));
 
   const missingIngredients = template.ingredientList
@@ -133,51 +165,109 @@ function validateBundleCandidate(
       }
 
       const matchingQuantity = pantry
-        .filter((item) => item.ingredientId === ingredient.ingredientId && item.unit === ingredient.unit)
+        .filter(
+          (item) =>
+            item.ingredientId === ingredient.ingredientId &&
+            item.unit === ingredient.unit
+        )
         .reduce((sum, item) => sum + item.quantity, 0);
 
       return matchingQuantity < ingredient.quantity;
     })
     .map(buildIngredientDisclosure);
 
+  const hardConstraintResult = validateHardConstraints(
+    {
+      id: template.id,
+      courses: [
+        {
+          id: template.id,
+          name: template.title,
+          ingredients: template.ingredientList.map(
+            (ingredient) => ({
+              id: ingredient.ingredientId,
+              name: ingredient.name
+            })
+          )
+        }
+      ]
+    },
+    userConstraints
+  );
+
+  const hasMissingIngredients = missingIngredients.length > 0;
+  const hasHardConstraintViolations =
+    !hardConstraintResult.allowed;
+  const isVisible =
+    (allowMissingIngredients || !hasMissingIngredients) &&
+    !hasHardConstraintViolations;
+
   const validationReport: ValidationReport = {
-    isValid: allowMissingIngredients || missingIngredients.length === 0,
-    reason: missingIngredients.length === 0 ? "ok" : "missing_ingredients",
+    isValid: isVisible,
+    reason:
+      hasMissingIngredients && hasHardConstraintViolations
+        ? 'missing_ingredients_and_hard_constraints'
+        : hasHardConstraintViolations
+          ? 'hard_constraints'
+          : hasMissingIngredients
+            ? 'missing_ingredients'
+            : 'ok',
     missingIngredients,
+    hardConstraintViolations: hardConstraintResult.violations
   };
 
   const candidate: ValidatedBundleCandidate = {
     ...template,
     contributorMapping,
     missingIngredients,
+    hardConstraintViolations: hardConstraintResult.violations,
     assumedStaples,
     validationReport,
     rationale: [
       template.rationale,
       assumedStaples.length > 0
-        ? `Assumed staples: ${assumedStaples.map((item) => item.name).join(", ")}.`
-        : "",
+        ? `Assumed staples: ${assumedStaples.map((item) => item.name).join(', ')}.`
+        : '',
       allowMissingIngredients && missingIngredients.length > 0
-        ? "Missing items are disclosed so the group can decide whether shopping is worth it."
-        : "",
+        ? 'Missing items are disclosed so the group can decide whether shopping is worth it.'
+        : ''
     ]
       .filter(Boolean)
-      .join(" "),
+      .join(' ')
   };
 
   return {
-    visible: allowMissingIngredients || missingIngredients.length === 0,
-    candidate,
+    visible: isVisible,
+    candidate
   };
 }
 
-export function buildValidatedCandidateSet(group: GroupRecord, templates: BundleTemplate[], pantry: PantryItem[]): ValidatedCandidateSet {
+export function buildValidatedCandidateSet(
+  group: GroupRecord,
+  templates: BundleTemplate[],
+  pantry: PantryItem[],
+  userConstraints: UserConstraints[] = []
+): ValidatedCandidateSet {
   const results = templates.map((template) =>
-    validateBundleCandidate(group, template, pantry, group.allowMissingIngredients),
+    validateBundleCandidate(
+      group,
+      template,
+      pantry,
+      group.allowMissingIngredients,
+      userConstraints
+    )
   );
 
   return {
-    candidates: results.filter((result) => result.visible).map((result) => result.candidate),
-    filteredOutCandidateCount: results.filter((result) => !result.visible).length,
+    candidates: results
+      .filter((result) => result.visible)
+      .map((result) => result.candidate),
+    filteredOutCandidateCount: results.filter(
+      (result) => !result.visible
+    ).length,
+    hardConstraintRejectedCount: results.filter(
+      (result) =>
+        result.candidate.hardConstraintViolations.length > 0
+    ).length
   };
 }
