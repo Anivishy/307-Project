@@ -9,9 +9,7 @@ import type {
   UserConstraints,
   UserConstraintsInput
 } from './constraints/types';
-
-const UUID_REGEX =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+import { isUuid } from './request-user';
 
 const constraintProfileSelect = {
   id: true,
@@ -20,10 +18,6 @@ const constraintProfileSelect = {
   neverIncludeIngredientIds: true,
   updatedAt: true
 };
-
-function isUuid(value: string) {
-  return UUID_REGEX.test(value);
-}
 
 async function getPrismaClient() {
   const { prisma } = await import('./prisma');
