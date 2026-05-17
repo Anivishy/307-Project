@@ -143,12 +143,10 @@ export function readBundleCandidates(
   groupId: string,
   userId: string
 ) {
+  // getViewerContext throws 404 if the group doesn't exist and 403 if the user isn't a member,
+  // so the group is guaranteed to exist after this call returns.
   const context = getViewerContext(groupId, userId);
-  const group = getGroupRecord(groupId);
-
-  if (!group) {
-    throw new ApiError(404, 'Group not found.');
-  }
+  const group = getGroupRecord(groupId)!;
 
   // Validation happens after loading pantry and templates so the response can include
   // both visible candidates and the number filtered out by group policy.

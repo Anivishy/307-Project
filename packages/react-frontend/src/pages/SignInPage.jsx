@@ -88,7 +88,6 @@ export function SignInPage({ mode = "signin" }) {
               <span>
                 <Check size={16} /> Remember me
               </span>
-              <Link to="/signin">Forgot?</Link>
             </div>
 
             <p className={`auth-status auth-status--${formStatus.tone}`}>{formStatus.message}</p>

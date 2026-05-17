@@ -1,4 +1,4 @@
-import { emptyConstraints } from "./normalize.ts";
+import { emptyConstraints } from "./normalize";
 import type { UserConstraints, UserConstraintsInput } from "./types";
 
 const constraintsByUserId = new Map<string, UserConstraints>();

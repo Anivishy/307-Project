@@ -38,11 +38,11 @@ export async function PATCH(
       body.allowMissingIngredients !== undefined &&
       typeof body.allowMissingIngredients !== "boolean"
     ) {
-      return NextResponse.json({ error: "allowMissingIngredients must be a boolean." }, { status: 400 });
+      return NextResponse.json({ error: { code: "invalidInput", message: "allowMissingIngredients must be a boolean." } }, { status: 400 });
     }
 
     if (body.staplesEnabled !== undefined && typeof body.staplesEnabled !== "boolean") {
-      return NextResponse.json({ error: "staplesEnabled must be a boolean." }, { status: 400 });
+      return NextResponse.json({ error: { code: "invalidInput", message: "staplesEnabled must be a boolean." } }, { status: 400 });
     }
 
     if (
@@ -50,7 +50,7 @@ export async function PATCH(
       (!Array.isArray(body.customStaples) ||
         body.customStaples.some((item) => typeof item !== "string"))
     ) {
-      return NextResponse.json({ error: "customStaples must be an array of ingredient ids." }, { status: 400 });
+      return NextResponse.json({ error: { code: "invalidInput", message: "customStaples must be an array of ingredient ids." } }, { status: 400 });
     }
 
     if (
@@ -58,7 +58,7 @@ export async function PATCH(
       body.staplesEnabled === undefined &&
       body.customStaples === undefined
     ) {
-      return NextResponse.json({ error: "No supported settings were provided." }, { status: 400 });
+      return NextResponse.json({ error: { code: "invalidInput", message: "No supported settings were provided." } }, { status: 400 });
     }
 
     // Only pass fields that survived validation; undefined means "do not change this setting."

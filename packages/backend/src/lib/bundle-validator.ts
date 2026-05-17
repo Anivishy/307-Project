@@ -176,21 +176,19 @@ function validateBundleCandidate(
     })
     .map(buildIngredientDisclosure);
 
+  // Map each actual course from the template so violation reports name the correct course
+  // rather than attributing everything to a synthetic bundle-level course.
   const hardConstraintResult = validateHardConstraints(
     {
       id: template.id,
-      courses: [
-        {
-          id: template.id,
-          name: template.title,
-          ingredients: template.ingredientList.map(
-            (ingredient) => ({
-              id: ingredient.ingredientId,
-              name: ingredient.name
-            })
-          )
-        }
-      ]
+      courses: template.courses.map((course, index) => ({
+        id: `${template.id}-course-${index}`,
+        name: course.title,
+        ingredients: template.ingredientList.map((ingredient) => ({
+          id: ingredient.ingredientId,
+          name: ingredient.name
+        }))
+      }))
     },
     userConstraints
   );
@@ -265,9 +263,12 @@ export function buildValidatedCandidateSet(
     filteredOutCandidateCount: results.filter(
       (result) => !result.visible
     ).length,
+    // Only count bundles where hard constraints are the sole reason for rejection,
+    // so this number does not overlap with filteredOutCandidateCount.
     hardConstraintRejectedCount: results.filter(
       (result) =>
-        result.candidate.hardConstraintViolations.length > 0
+        result.candidate.hardConstraintViolations.length > 0 &&
+        result.candidate.missingIngredients.length === 0
     ).length
   };
 }
