@@ -14,7 +14,7 @@
   --color-yellow: #f5c84b;
   --color-blue: #7cb7ff;
   --shadow-card: 0 24px 70px rgba(0, 0, 0, 0.36);
-  font-family: Inter, "SF Pro Display", Arial, sans-serif;
+  font-family: Inter, 'SF Pro Display', Arial, sans-serif;
   background: #e9eaec;
   color: var(--color-text);
 }
@@ -28,8 +28,16 @@ body {
   min-width: 320px;
   min-height: 100vh;
   background:
-    radial-gradient(circle at 16% 12%, rgba(255, 90, 61, 0.16), transparent 26%),
-    radial-gradient(circle at 84% 24%, rgba(156, 227, 106, 0.13), transparent 30%),
+    radial-gradient(
+      circle at 16% 12%,
+      rgba(255, 90, 61, 0.16),
+      transparent 26%
+    ),
+    radial-gradient(
+      circle at 84% 24%,
+      rgba(156, 227, 106, 0.13),
+      transparent 30%
+    ),
     #e9eaec;
 }
 
@@ -160,6 +168,11 @@ img {
   color: var(--color-text);
   font-weight: 800;
   cursor: pointer;
+}
+
+.button:disabled {
+  cursor: not-allowed;
+  opacity: 0.68;
 }
 
 .button--dark {
@@ -310,8 +323,17 @@ img {
   position: absolute;
   inset: 0;
   background:
-    linear-gradient(180deg, rgba(0, 0, 0, 0.08), rgba(0, 0, 0, 0.28) 46%, rgba(18, 18, 18, 0.96) 57%),
-    radial-gradient(circle at 18% 50%, rgba(255, 90, 61, 0.34), transparent 34%);
+    linear-gradient(
+      180deg,
+      rgba(0, 0, 0, 0.08),
+      rgba(0, 0, 0, 0.28) 46%,
+      rgba(18, 18, 18, 0.96) 57%
+    ),
+    radial-gradient(
+      circle at 18% 50%,
+      rgba(255, 90, 61, 0.34),
+      transparent 34%
+    );
 }
 
 .landing-nav {
@@ -443,7 +465,11 @@ img {
 .auth-hero__shade {
   position: absolute;
   inset: 0;
-  background: linear-gradient(180deg, rgba(0, 0, 0, 0.1), var(--color-bg));
+  background: linear-gradient(
+    180deg,
+    rgba(0, 0, 0, 0.1),
+    var(--color-bg)
+  );
 }
 
 .auth-back {
@@ -727,7 +753,11 @@ img {
 .recipe-card__shade {
   position: absolute;
   inset: 0;
-  background: linear-gradient(90deg, rgba(0, 0, 0, 0.72), transparent 88%);
+  background: linear-gradient(
+    90deg,
+    rgba(0, 0, 0, 0.72),
+    transparent 88%
+  );
 }
 
 .recipe-card__heart,
@@ -813,7 +843,12 @@ img {
 .recipe-detail-hero__shade {
   position: absolute;
   inset: 0;
-  background: linear-gradient(180deg, rgba(0, 0, 0, 0.18), transparent 48%, rgba(0, 0, 0, 0.36));
+  background: linear-gradient(
+    180deg,
+    rgba(0, 0, 0, 0.18),
+    transparent 48%,
+    rgba(0, 0, 0, 0.36)
+  );
 }
 
 .detail-back-button,
@@ -1042,13 +1077,156 @@ img {
 }
 
 .profile-pills span,
-.ingredient-status {
+.ingredient-status,
+.constraint-summary span {
   border: 1px solid var(--color-line);
   border-radius: 999px;
   background: var(--color-surface-strong);
   color: var(--color-text);
   padding: 7px 10px;
   font-size: 0.74rem;
+  font-weight: 800;
+}
+
+.constraints-card {
+  display: grid;
+  gap: 18px;
+  margin-top: 18px;
+  padding: 20px;
+}
+
+.constraints-card__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.constraints-card__header h2 {
+  margin: 0;
+  color: var(--color-text);
+}
+
+.constraints-card__header p:not(.eyebrow),
+.constraint-note {
+  margin: 8px 0 0;
+  color: var(--color-muted);
+  line-height: 1.5;
+}
+
+.constraints-card__header .button {
+  flex: 0 0 auto;
+}
+
+.constraint-summary,
+.constraint-chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px;
+}
+
+.constraints-form {
+  display: grid;
+  gap: 16px;
+}
+
+.tag-input,
+.ingredient-picker {
+  position: relative;
+  display: grid;
+  gap: 10px;
+}
+
+.constraint-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border-radius: 999px;
+  padding: 9px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  font-size: 0.8rem;
+  font-weight: 800;
+}
+
+.constraint-chip--empty {
+  border-style: dashed;
+  background: transparent;
+  color: var(--color-muted);
+}
+
+.constraint-chip--removable {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+.constraint-chip--removable span {
+  color: var(--color-orange);
+}
+
+.constraint-input {
+  width: 100%;
+  min-height: 48px;
+  border: 1px solid var(--color-line);
+  border-radius: 16px;
+  background: var(--color-surface-strong);
+  color: var(--color-text);
+  padding: 0 14px;
+  outline: none;
+}
+
+.typeahead-results {
+  position: absolute;
+  z-index: 10;
+  top: calc(100% + 6px);
+  right: 0;
+  left: 0;
+  display: grid;
+  overflow: hidden;
+  border: 1px solid var(--color-line);
+  border-radius: 18px;
+  background: var(--color-surface-strong);
+  box-shadow: var(--shadow-card);
+}
+
+.result-row {
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  border: 0;
+  border-bottom: 1px solid var(--color-line);
+  background: transparent;
+  color: var(--color-text);
+  padding: 11px 14px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.result-row:last-child {
+  border-bottom: 0;
+}
+
+.result-row:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.result-row small {
+  color: var(--color-muted);
+}
+
+.constraint-success,
+.constraint-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.constraint-success {
+  margin: 0;
+  color: var(--color-green);
   font-weight: 800;
 }
 
@@ -1184,7 +1362,11 @@ img {
 .group-card__shade {
   position: absolute;
   inset: 0;
-  background: linear-gradient(90deg, rgba(0, 0, 0, 0.7), transparent 82%);
+  background: linear-gradient(
+    90deg,
+    rgba(0, 0, 0, 0.7),
+    transparent 82%
+  );
 }
 
 .group-card__open,
@@ -1253,7 +1435,12 @@ img {
 .group-detail-hero__shade {
   position: absolute;
   inset: 0;
-  background: linear-gradient(180deg, rgba(0, 0, 0, 0.18), transparent 48%, rgba(0, 0, 0, 0.52));
+  background: linear-gradient(
+    180deg,
+    rgba(0, 0, 0, 0.18),
+    transparent 48%,
+    rgba(0, 0, 0, 0.52)
+  );
 }
 
 .group-detail-panel {
@@ -1753,8 +1940,16 @@ img {
   padding: 32px 24px;
   border-right: 1px solid rgba(255, 255, 255, 0.08);
   background:
-    radial-gradient(circle at top left, rgba(255, 90, 61, 0.2), transparent 40%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0));
+    radial-gradient(
+      circle at top left,
+      rgba(255, 90, 61, 0.2),
+      transparent 40%
+    ),
+    linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.04),
+      rgba(255, 255, 255, 0)
+    );
 }
 
 .app-brand {
@@ -1868,8 +2063,16 @@ img {
   min-width: 0;
   min-height: 0;
   background:
-    radial-gradient(circle at top right, rgba(124, 183, 255, 0.08), transparent 22%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.02), rgba(255, 255, 255, 0)),
+    radial-gradient(
+      circle at top right,
+      rgba(124, 183, 255, 0.08),
+      transparent 22%
+    ),
+    linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.02),
+      rgba(255, 255, 255, 0)
+    ),
     var(--color-bg);
 }
 
@@ -1963,7 +2166,10 @@ img {
 
 .auth-frame {
   display: grid;
-  grid-template-columns: minmax(340px, 1.1fr) minmax(380px, 0.9fr);
+  grid-template-columns: minmax(340px, 1.1fr) minmax(
+      380px,
+      0.9fr
+    );
   min-height: calc(100vh - 64px);
 }
 
@@ -2205,9 +2411,21 @@ img {
   position: absolute;
   inset: 0;
   background:
-    linear-gradient(135deg, rgba(0, 0, 0, 0.12), rgba(0, 0, 0, 0.5)),
-    radial-gradient(circle at 18% 18%, rgba(255, 90, 61, 0.32), transparent 26%),
-    linear-gradient(180deg, rgba(17, 17, 17, 0.02), rgba(17, 17, 17, 0.72));
+    linear-gradient(
+      135deg,
+      rgba(0, 0, 0, 0.12),
+      rgba(0, 0, 0, 0.5)
+    ),
+    radial-gradient(
+      circle at 18% 18%,
+      rgba(255, 90, 61, 0.32),
+      transparent 26%
+    ),
+    linear-gradient(
+      180deg,
+      rgba(17, 17, 17, 0.02),
+      rgba(17, 17, 17, 0.72)
+    );
 }
 
 .landing-photo-card {
@@ -2288,8 +2506,16 @@ img {
 
 body {
   background:
-    radial-gradient(circle at 14% 10%, rgba(255, 90, 61, 0.16), transparent 22%),
-    radial-gradient(circle at 86% 16%, rgba(124, 183, 255, 0.1), transparent 20%),
+    radial-gradient(
+      circle at 14% 10%,
+      rgba(255, 90, 61, 0.16),
+      transparent 22%
+    ),
+    radial-gradient(
+      circle at 86% 16%,
+      rgba(124, 183, 255, 0.1),
+      transparent 20%
+    ),
     var(--color-bg-deep);
 }
 
@@ -2379,8 +2605,13 @@ body {
 @media (max-width: 640px) {
   .toggle-row,
   .bundle-card__header,
-  .staple-editor {
+  .staple-editor,
+  .constraints-card__header {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .constraints-card__header .button {
+    width: 100%;
   }
 }
