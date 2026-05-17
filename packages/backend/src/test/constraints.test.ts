@@ -1,7 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { GET as getBundleCandidates } from '../app/api/groups/[groupId]/bundle-candidates/route';
-import { PATCH as patchProfileConstraintsRoute } from '../app/api/profile/constraints/route';
 import {
   findMissingIngredientIds,
   searchIngredients
@@ -187,21 +186,10 @@ describe('US5 hard dietary constraints', () => {
     ).toEqual(['unsafe']);
   });
 
-  it('saved profile constraints hide violating group bundle candidates', async () => {
-    const saveResponse = await patchProfileConstraintsRoute(
-      createRequest(
-        'http://localhost/api/profile/constraints',
-        DEMO_ADMIN_USER_ID,
-        {
-          method: 'PATCH',
-          body: JSON.stringify({
-            neverIncludeIngredientIds: ['cream']
-          })
-        }
-      )
-    );
-
-    expect(saveResponse.status).toBe(200);
+  it('stored profile constraints hide violating group bundle candidates', async () => {
+    patchUserConstraints(DEMO_ADMIN_USER_ID, {
+      neverIncludeIngredientIds: ['cream']
+    });
 
     const candidateResponse = await getBundleCandidates(
       createRequest(

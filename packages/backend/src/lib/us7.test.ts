@@ -113,7 +113,9 @@ describe("US7 missing ingredient settings", () => {
 
     expect(response.status).toBe(403);
     await expect(response.json()).resolves.toMatchObject({
-      error: "Only admins can update group settings.",
+      error: {
+        message: "Only admins can update group settings.",
+      },
     });
   });
 });

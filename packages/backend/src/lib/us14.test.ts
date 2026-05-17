@@ -109,7 +109,9 @@ describe("US14 admin concurrency", () => {
 
     expect(staleResponse.status).toBe(409);
     await expect(staleResponse.json()).resolves.toMatchObject({
-      error: "Candidate set is stale. Refresh or explicitly confirm before selecting.",
+      error: {
+        message: "Candidate set is stale. Refresh or explicitly confirm before selecting.",
+      },
     });
   });
 

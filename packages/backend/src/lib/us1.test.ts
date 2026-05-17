@@ -13,6 +13,9 @@ const profile = {
   id: '11111111-1111-4111-8111-111111111111',
   email: 'kartik@example.com',
   displayName: 'Kartik',
+  allergies: [],
+  medicalRestrictions: [],
+  neverIncludeIngredientIds: [],
   createdAt: '2026-05-14T00:00:00.000Z',
   updatedAt: '2026-05-14T00:00:00.000Z'
 };
