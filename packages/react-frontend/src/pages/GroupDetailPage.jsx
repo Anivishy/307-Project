@@ -112,19 +112,7 @@ export function GroupDetailPage() {
           allowMissingIngredients: nextValue
         }
       );
-      const updatedCandidates = await getBundleCandidates(
-        group.id
-      );
-
-      setSettings(updatedSettings);
-      setCustomStaplesDraft(updatedSettings.customStaples);
-      setCandidates(updatedCandidates.candidates);
-      setFilteredOutCount(
-        updatedCandidates.filteredOutCandidateCount
-      );
-      setHardConstraintRejectedCount(
-        updatedCandidates.hardConstraintRejectedCount ?? 0
-      );
+      await refreshCandidates(updatedSettings);
     } catch (error) {
       setErrorMessage(
         error instanceof Error
