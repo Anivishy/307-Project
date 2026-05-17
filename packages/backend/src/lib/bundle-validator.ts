@@ -176,21 +176,19 @@ function validateBundleCandidate(
     })
     .map(buildIngredientDisclosure);
 
+  // Map each actual course from the template so violation reports name the correct course
+  // rather than attributing everything to a synthetic bundle-level course.
   const hardConstraintResult = validateHardConstraints(
     {
       id: template.id,
-      courses: [
-        {
-          id: template.id,
-          name: template.title,
-          ingredients: template.ingredientList.map(
-            (ingredient) => ({
-              id: ingredient.ingredientId,
-              name: ingredient.name
-            })
-          )
-        }
-      ]
+      courses: template.courses.map((course, index) => ({
+        id: `${template.id}-course-${index}`,
+        name: course.title,
+        ingredients: template.ingredientList.map((ingredient) => ({
+          id: ingredient.ingredientId,
+          name: ingredient.name
+        }))
+      }))
     },
     userConstraints
   );
