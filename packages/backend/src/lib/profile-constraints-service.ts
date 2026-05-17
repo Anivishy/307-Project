@@ -1,10 +1,5 @@
 import { ApiError } from './api-error';
 import { emptyConstraints } from './constraints/normalize';
-import {
-  getUserConstraints,
-  patchUserConstraints,
-  replaceUserConstraints
-} from './constraints/store';
 import type {
   UserConstraints,
   UserConstraintsInput
@@ -24,6 +19,12 @@ async function getPrismaClient() {
   return prisma;
 }
 
+function assertValidUserId(userId: string) {
+  if (!isUuid(userId)) {
+    throw new ApiError(400, 'userId must be a valid UUID.');
+  }
+}
+
 function serializeProfileConstraints(profile: {
   id: string;
   allergies: string[];
@@ -41,10 +42,10 @@ function serializeProfileConstraints(profile: {
   };
 }
 
-async function readDbProfileConstraints(userId: string) {
-  if (!isUuid(userId)) {
-    return null;
-  }
+export async function readProfileConstraints(
+  userId: string
+): Promise<UserConstraints> {
+  assertValidUserId(userId);
 
   const prisma = await getPrismaClient();
   const profile = await prisma.profile.findUnique({
@@ -59,14 +60,11 @@ async function readDbProfileConstraints(userId: string) {
   return serializeProfileConstraints(profile);
 }
 
-async function updateDbProfileConstraints(
+export async function replaceProfileConstraints(
   userId: string,
-  input: UserConstraintsInput,
-  mode: 'patch' | 'replace'
-) {
-  if (!isUuid(userId)) {
-    return null;
-  }
+  input: UserConstraintsInput
+): Promise<UserConstraints> {
+  assertValidUserId(userId);
 
   const prisma = await getPrismaClient();
   const existingProfile = await prisma.profile.findUnique({
@@ -79,31 +77,52 @@ async function updateDbProfileConstraints(
   }
 
   const empty = emptyConstraints(userId);
-  const data =
-    mode === 'replace'
+  const profile = await prisma.profile.update({
+    where: { id: userId },
+    data: {
+      allergies: input.allergies ?? empty.allergies,
+      medicalRestrictions:
+        input.medicalRestrictions ?? empty.medicalRestrictions,
+      neverIncludeIngredientIds:
+        input.neverIncludeIngredientIds ??
+        empty.neverIncludeIngredientIds
+    },
+    select: constraintProfileSelect
+  });
+
+  return serializeProfileConstraints(profile);
+}
+
+export async function patchProfileConstraints(
+  userId: string,
+  input: UserConstraintsInput
+): Promise<UserConstraints> {
+  assertValidUserId(userId);
+
+  const prisma = await getPrismaClient();
+  const existingProfile = await prisma.profile.findUnique({
+    where: { id: userId },
+    select: { id: true }
+  });
+
+  if (!existingProfile) {
+    throw new ApiError(404, 'Profile not found.');
+  }
+
+  const data = {
+    ...(input.allergies !== undefined
+      ? { allergies: input.allergies }
+      : {}),
+    ...(input.medicalRestrictions !== undefined
+      ? { medicalRestrictions: input.medicalRestrictions }
+      : {}),
+    ...(input.neverIncludeIngredientIds !== undefined
       ? {
-          allergies: input.allergies ?? empty.allergies,
-          medicalRestrictions:
-            input.medicalRestrictions ??
-            empty.medicalRestrictions,
           neverIncludeIngredientIds:
-            input.neverIncludeIngredientIds ??
-            empty.neverIncludeIngredientIds
+            input.neverIncludeIngredientIds
         }
-      : {
-          ...(input.allergies !== undefined
-            ? { allergies: input.allergies }
-            : {}),
-          ...(input.medicalRestrictions !== undefined
-            ? { medicalRestrictions: input.medicalRestrictions }
-            : {}),
-          ...(input.neverIncludeIngredientIds !== undefined
-            ? {
-                neverIncludeIngredientIds:
-                  input.neverIncludeIngredientIds
-              }
-            : {})
-        };
+      : {})
+  };
 
   const profile = await prisma.profile.update({
     where: { id: userId },
@@ -112,37 +131,4 @@ async function updateDbProfileConstraints(
   });
 
   return serializeProfileConstraints(profile);
-}
-
-export async function readProfileConstraints(userId: string) {
-  return (
-    (await readDbProfileConstraints(userId)) ??
-    getUserConstraints(userId)
-  );
-}
-
-export async function replaceProfileConstraints(
-  userId: string,
-  input: UserConstraintsInput
-) {
-  return (
-    (await updateDbProfileConstraints(
-      userId,
-      input,
-      'replace'
-    )) ?? replaceUserConstraints(userId, input)
-  );
-}
-
-export async function patchProfileConstraints(
-  userId: string,
-  input: UserConstraintsInput
-) {
-  return (
-    (await updateDbProfileConstraints(
-      userId,
-      input,
-      'patch'
-    )) ?? patchUserConstraints(userId, input)
-  );
 }
