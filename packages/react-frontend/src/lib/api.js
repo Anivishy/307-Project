@@ -1,3 +1,5 @@
+import { getSessionProfileId } from './session.js';
+
 const DEMO_USER_ID = 'user-admin-1';
 
 export async function readJson(response) {
@@ -14,7 +16,7 @@ export async function readJson(response) {
 
 export async function apiFetch(path, init = {}) {
   const headers = new Headers(init.headers ?? {});
-  headers.set('x-user-id', DEMO_USER_ID);
+  headers.set('x-user-id', getSessionProfileId() ?? DEMO_USER_ID);
 
   if (init.body && !headers.has('content-type')) {
     headers.set('content-type', 'application/json');

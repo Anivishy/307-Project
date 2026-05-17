@@ -7,6 +7,7 @@ import { assertUuid } from './request-user';
 // Ingredient service currently models each user's pantry items.
 // The ownerId argument is always supplied by the route from x-user-id, never trusted from request JSON.
 type IngredientCreateInput = {
+  canonicalIngredientId?: unknown;
   name?: unknown;
   quantity?: unknown;
   unit?: unknown;
@@ -65,6 +66,20 @@ function normalizeNullableText(
   return trimmed || null;
 }
 
+function normalizeCanonicalIngredientId(value: unknown) {
+  const normalized = normalizeNullableText(
+    value,
+    'canonicalIngredientId',
+    80
+  );
+
+  if (normalized === null) {
+    return null;
+  }
+
+  return normalized?.toLowerCase();
+}
+
 function normalizeNullableQuantity(value: unknown) {
   if (value === undefined) {
     return undefined;
@@ -92,6 +107,7 @@ function serializeIngredient(ingredient: Ingredient) {
   return {
     id: ingredient.id,
     ownerId: ingredient.ownerId,
+    canonicalIngredientId: ingredient.canonicalIngredientId,
     name: ingredient.name,
     quantity:
       ingredient.quantity === null
@@ -138,6 +154,9 @@ export async function createIngredient(
     const ingredient = await prisma.ingredient.create({
       data: {
         ownerId,
+        canonicalIngredientId: normalizeCanonicalIngredientId(
+          input.canonicalIngredientId
+        ),
         name: normalizeRequiredText(input.name, 'name', 120),
         quantity: normalizeNullableQuantity(input.quantity),
         unit: normalizeNullableText(input.unit, 'unit', 40),
@@ -174,6 +193,13 @@ export async function updateIngredient(
   const data = {
     ...(input.name !== undefined
       ? { name: normalizeRequiredText(input.name, 'name', 120) }
+      : {}),
+    ...(input.canonicalIngredientId !== undefined
+      ? {
+          canonicalIngredientId: normalizeCanonicalIngredientId(
+            input.canonicalIngredientId
+          )
+        }
       : {}),
     ...(input.quantity !== undefined
       ? { quantity: normalizeNullableQuantity(input.quantity) }

@@ -48,30 +48,35 @@ model Profile {
 }
 
 model Ingredient {
-  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  ownerId   String   @map("owner_id") @db.Uuid
-  name      String   @db.VarChar(120)
-  quantity  Decimal? @db.Decimal(10, 2)
-  unit      String?  @db.VarChar(40)
-  notes     String?  @db.Text
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id                    String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  ownerId               String   @map("owner_id") @db.Uuid
+  canonicalIngredientId String?  @map("canonical_ingredient_id") @db.VarChar(80)
+  name                  String   @db.VarChar(120)
+  quantity              Decimal? @db.Decimal(10, 2)
+  unit                  String?  @db.VarChar(40)
+  notes                 String?  @db.Text
+  createdAt             DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt             DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   owner Profile @relation(fields: [ownerId], references: [id], onDelete: Cascade)
 
   @@unique([ownerId, name])
+  @@index([canonicalIngredientId])
   @@index([ownerId])
   @@map("ingredients")
 }
 
 model Group {
-  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  ownerId     String   @map("owner_id") @db.Uuid
-  name        String   @db.VarChar(120)
-  description String?  @db.Text
-  inviteCode  String?  @unique @map("invite_code") @db.VarChar(32)
-  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id                    String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  ownerId               String   @map("owner_id") @db.Uuid
+  name                  String   @db.VarChar(120)
+  description           String?  @db.Text
+  inviteCode            String?  @unique @map("invite_code") @db.VarChar(32)
+  pantrySnapshotVersion Int      @default(1) @map("pantry_snapshot_version")
+  activeBundleVersion   Int      @default(1) @map("active_bundle_version")
+  selectedBundleId      String?  @map("selected_bundle_id") @db.VarChar(120)
+  createdAt             DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt             DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   owner        Profile       @relation("GroupOwner", fields: [ownerId], references: [id], onDelete: Restrict)
   members      GroupMember[]

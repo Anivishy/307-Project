@@ -1,18 +1,25 @@
-import { Check, Lock, Mail } from "lucide-react";
+import { KeyRound, Mail, ShieldCheck } from "lucide-react";
 import { useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import creamyPan from "../../assets/creamy-pan.jpg";
+import { requestEmailOtp, verifyEmailOtp } from "../lib/authApi.js";
 
 export function SignInPage({ mode = "signin" }) {
   const isSignUp = mode === "signup";
-  const [form, setForm] = useState({ name: "", email: "", password: "" });
+  const navigate = useNavigate();
+  const [form, setForm] = useState({ name: "", email: "", otp: "" });
+  const [step, setStep] = useState("email");
   const [touched, setTouched] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [otpPreview, setOtpPreview] = useState("");
+  const [serverMessage, setServerMessage] = useState("");
+  const [serverTone, setServerTone] = useState("neutral");
 
   const formStatus = useMemo(() => {
     if (!touched) {
       return {
         tone: "neutral",
-        message: "Your pantry and group data stay connected after login.",
+        message: "Your pantry and group data stay connected after OTP login.",
       };
     }
 
@@ -20,24 +27,69 @@ export function SignInPage({ mode = "signin" }) {
       return { tone: "error", message: "Enter a valid email address." };
     }
 
-    if (form.password.length < 6) {
-      return { tone: "error", message: "Password needs at least 6 characters." };
+    if (serverMessage && serverTone === "error") {
+      return { tone: "error", message: serverMessage };
+    }
+
+    if (step === "otp" && form.otp.length !== 6) {
+      return { tone: "error", message: "Enter the 6-digit OTP from the email preview." };
     }
 
     return {
       tone: "success",
-      message: isSignUp ? "Account preview looks ready." : "Login preview looks ready.",
+      message:
+        step === "otp"
+          ? serverMessage || "OTP ready to verify against the backend."
+          : serverMessage || `OTP ready to send to ${form.email}.`,
     };
-  }, [form.email, form.password, isSignUp, touched]);
+  }, [form.email, form.otp, serverMessage, serverTone, step, touched]);
 
   function updateField(event) {
     const { name, value } = event.target;
     setForm((current) => ({ ...current, [name]: value }));
   }
 
-  function handleSubmit(event) {
+  async function handleSubmit(event) {
     event.preventDefault();
     setTouched(true);
+    setServerMessage("");
+    setServerTone("neutral");
+
+    if (!form.email.includes("@")) {
+      return;
+    }
+
+    if (step === "email") {
+      setIsSubmitting(true);
+      try {
+        const payload = await requestEmailOtp(form.email);
+        setOtpPreview(payload.otpPreview ?? "");
+        setStep("otp");
+        setServerMessage("OTP requested from /api/auth/email-otp/request.");
+        setServerTone("success");
+      } catch (error) {
+        setServerMessage(error instanceof Error ? error.message : "Unable to request OTP.");
+        setServerTone("error");
+      } finally {
+        setIsSubmitting(false);
+      }
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      await verifyEmailOtp({
+        email: form.email,
+        otp: form.otp,
+        displayName: form.name || "Kartik",
+      });
+      navigate("/groups", { replace: true });
+    } catch (error) {
+      setServerMessage(error instanceof Error ? error.message : "Unable to verify OTP.");
+      setServerTone("error");
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
   return (
@@ -56,8 +108,8 @@ export function SignInPage({ mode = "signin" }) {
           <h1 className="auth-title">{isSignUp ? "Start cooking together." : "Your group dinner starts here."}</h1>
           <p className="auth-copy">
             {isSignUp
-              ? "Create an account to build a pantry, join groups, and save recipes."
-              : "Sign in to access saved recipes, ingredient requests, and group meals."}
+              ? "Create an account with a one-time email code to build a pantry and join groups."
+              : "Sign in with a one-time email code to access saved recipes and group meals."}
           </p>
 
           <form className="auth-form" onSubmit={handleSubmit} noValidate>
@@ -72,28 +124,37 @@ export function SignInPage({ mode = "signin" }) {
               <Mail size={20} />
               <input name="email" value={form.email} onChange={updateField} placeholder="kartik@example.com" />
             </label>
-            <label className="auth-field auth-field--icon">
-              <span>Password</span>
-              <Lock size={20} />
-              <input
-                name="password"
-                type="password"
-                value={form.password}
-                onChange={updateField}
-                placeholder="At least 6 characters"
-              />
-            </label>
+
+            {step === "otp" && (
+              <label className="auth-field auth-field--icon">
+                <span>One-time code</span>
+                <KeyRound size={20} />
+                <input
+                  name="otp"
+                  inputMode="numeric"
+                  maxLength={6}
+                  value={form.otp}
+                  onChange={updateField}
+                  placeholder={otpPreview || "000000"}
+                />
+              </label>
+            )}
 
             <div className="auth-options">
               <span>
-                <Check size={16} /> Remember me
+                <ShieldCheck size={16} /> Session persists after refresh
               </span>
+              {step === "otp" && (
+                <button type="button" onClick={() => setStep("email")}>
+                  Change email
+                </button>
+              )}
             </div>
 
             <p className={`auth-status auth-status--${formStatus.tone}`}>{formStatus.message}</p>
 
             <button className="button button--wide" type="submit">
-              {isSignUp ? "Create Account" : "Sign In"}
+              {isSubmitting ? "Please wait..." : step === "email" ? "Request OTP" : "Verify OTP"}
             </button>
           </form>
 
