@@ -1,6 +1,7 @@
 import type { Ingredient } from '../generated/prisma';
 import { ApiError } from './api-error';
 import { prisma } from './prisma';
+import { isPrismaError } from './prisma-utils';
 import { assertUuid } from './request-user';
 
 // Ingredient service currently models each user's pantry items.
@@ -13,15 +14,6 @@ type IngredientCreateInput = {
 };
 
 type IngredientUpdateInput = Partial<IngredientCreateInput>;
-
-function isPrismaError(error: unknown, code: string) {
-  return (
-    typeof error === 'object' &&
-    error !== null &&
-    'code' in error &&
-    error.code === code
-  );
-}
 
 function normalizeRequiredText(
   value: unknown,

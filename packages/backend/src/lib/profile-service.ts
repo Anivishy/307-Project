@@ -1,6 +1,7 @@
 import type { Profile } from '../generated/prisma';
 import { ApiError } from './api-error';
 import { prisma } from './prisma';
+import { isPrismaError } from './prisma-utils';
 import { assertUuid } from './request-user';
 
 // Profile service = user persistence for the SRD's sign-in/session story.
@@ -12,15 +13,6 @@ type ProfileCreateInput = {
 };
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-function isPrismaError(error: unknown, code: string) {
-  return (
-    typeof error === 'object' &&
-    error !== null &&
-    'code' in error &&
-    error.code === code
-  );
-}
 
 function normalizeOptionalText(
   value: unknown,
