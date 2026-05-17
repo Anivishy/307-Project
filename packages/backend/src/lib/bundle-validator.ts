@@ -265,9 +265,12 @@ export function buildValidatedCandidateSet(
     filteredOutCandidateCount: results.filter(
       (result) => !result.visible
     ).length,
+    // Only count bundles where hard constraints are the sole reason for rejection,
+    // so this number does not overlap with filteredOutCandidateCount.
     hardConstraintRejectedCount: results.filter(
       (result) =>
-        result.candidate.hardConstraintViolations.length > 0
+        result.candidate.hardConstraintViolations.length > 0 &&
+        result.candidate.missingIngredients.length === 0
     ).length
   };
 }
