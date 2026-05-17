@@ -18,13 +18,6 @@ import {
   updateGroupSettings
 } from '../lib/groupApi.js';
 
-const members = [
-  { name: 'Ani', role: 'Scrum Master' },
-  { name: 'Vinayak', role: 'Product Owner' },
-  { name: 'Kartik', role: 'Tester' },
-  { name: 'Leon', role: 'Lead Developer' }
-];
-
 function formatMissingItem(item) {
   return `${item.quantityNeeded} ${item.unit} ${item.name}`;
 }
@@ -278,18 +271,6 @@ export function GroupDetailPage() {
         <p className="recipe-detail-description">
           {group.description}
         </p>
-
-        <section
-          className="member-row"
-          aria-label="Group members">
-          {members.map((member) => (
-            <div key={member.name}>
-              <span>{member.name[0]}</span>
-              <strong>{member.name}</strong>
-              <small>{member.role}</small>
-            </div>
-          ))}
-        </section>
 
         <section className="settings-card surface-card">
           <div className="section-heading">
