@@ -5,13 +5,13 @@ import { ApiError } from './api-error';
 export function handleApiError(error: unknown) {
   if (error instanceof ApiError) {
     return NextResponse.json(
-      { error: error.message },
+      { error: { code: 'apiError', message: error.message } },
       { status: error.statusCode }
     );
   }
 
   return NextResponse.json(
-    { error: 'Unexpected server error.' },
+    { error: { code: 'unexpectedError', message: 'Unexpected server error.' } },
     { status: 500 }
   );
 }
