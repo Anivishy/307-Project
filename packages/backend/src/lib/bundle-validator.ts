@@ -51,6 +51,13 @@ export type ValidatedCandidateSet = {
   candidates: ValidatedBundleCandidate[];
   filteredOutCandidateCount: number;
   hardConstraintRejectedCount: number;
+  rejectedCandidates: Array<{
+    candidateId: string;
+    title: string;
+    reason: ValidationReport['reason'];
+    missingIngredients: MissingIngredientDisclosure[];
+    hardConstraintViolationCount: number;
+  }>;
 };
 
 function buildIngredientDisclosure(
@@ -268,6 +275,16 @@ export function buildValidatedCandidateSet(
     hardConstraintRejectedCount: results.filter(
       (result) =>
         result.candidate.hardConstraintViolations.length > 0
-    ).length
+    ).length,
+    rejectedCandidates: results
+      .filter((result) => !result.visible)
+      .map(({ candidate }) => ({
+        candidateId: candidate.id,
+        title: candidate.title,
+        reason: candidate.validationReport.reason,
+        missingIngredients: candidate.missingIngredients,
+        hardConstraintViolationCount:
+          candidate.hardConstraintViolations.length
+      }))
   };
 }

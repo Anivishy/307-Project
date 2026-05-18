@@ -8,6 +8,8 @@ import {
   it,
   vi
 } from 'vitest';
+import { useState } from 'react';
+import { TagInput } from '../components/TagInput.jsx';
 import { ProfilePage } from './ProfilePage.jsx';
 
 const constraintsPayload = {
@@ -98,5 +100,32 @@ describe('ProfilePage US5 controls', () => {
       medicalRestrictions: ['low sodium'],
       neverIncludeIngredientIds: ['shrimp']
     });
+  });
+
+  it('does not add a partially typed tag when removing another tag', async () => {
+    const user = userEvent.setup();
+
+    function TagInputHarness() {
+      const [values, setValues] = useState(['peanut']);
+
+      return (
+        <TagInput
+          label="Allergies"
+          placeholder="Add allergy"
+          values={values}
+          onChange={setValues}
+        />
+      );
+    }
+
+    render(<TagInputHarness />);
+
+    await user.type(screen.getByPlaceholderText('Add allergy'), 'soy');
+    await user.click(
+      screen.getByRole('button', { name: 'Remove peanut' })
+    );
+
+    expect(screen.queryByText('peanut')).not.toBeInTheDocument();
+    expect(screen.queryByText('soy')).not.toBeInTheDocument();
   });
 });

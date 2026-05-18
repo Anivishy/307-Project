@@ -127,6 +127,13 @@ export async function readProfileConstraints(userId: string) {
   );
 }
 
+export async function listProfileConstraintsForUsers(
+  userIds: string[]
+) {
+  const uniqueUserIds = Array.from(new Set(userIds));
+  return Promise.all(uniqueUserIds.map(readProfileConstraints));
+}
+
 export async function replaceProfileConstraints(
   userId: string,
   input: UserConstraintsInput

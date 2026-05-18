@@ -8,6 +8,7 @@ import type {
   RejectedCandidate,
   UserConstraints
 } from './types';
+import { findIngredientDetailsById } from './ingredients';
 
 function normalizeMatch(value: string): string {
   return value.trim().toLowerCase().replace(/\s+/g, ' ');
@@ -24,31 +25,118 @@ function matchVariants(value: string): string[] {
   return variants;
 }
 
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function isNegativeConstraintDescriptor(
+  term: string,
+  constraintTerm: string
+): boolean {
+  const escapedTerm = escapeRegExp(constraintTerm);
+  const boundary = '(?:^|[\\s-])';
+  const endBoundary = '(?:$|[\\s-])';
+  const negativePrefix = new RegExp(
+    `${boundary}(?:no|non|without|free(?:\\s+from)?)` +
+      `[\\s-]+${escapedTerm}${endBoundary}`
+  );
+  const freeSuffix = new RegExp(
+    `${boundary}${escapedTerm}[\\s-]+free${endBoundary}`
+  );
+
+  return negativePrefix.test(term) || freeSuffix.test(term);
+}
+
+const ignoredConstraintWords = new Set([
+  'allergic',
+  'allergy',
+  'avoid',
+  'avoiding',
+  'diet',
+  'free',
+  'hard',
+  'intolerance',
+  'intolerant',
+  'low',
+  'medical',
+  'no',
+  'non',
+  'restriction',
+  'restricted'
+]);
+
+const constraintAliases: Record<string, string[]> = {
+  'dairy free': ['dairy', 'lactose', 'milk'],
+  'gluten free': ['gluten', 'wheat'],
+  'lactose intolerance': ['lactose', 'dairy', 'milk'],
+  'lactose intolerant': ['lactose', 'dairy', 'milk'],
+  'low sodium': ['sodium', 'salt'],
+  'no sodium': ['sodium', 'salt'],
+  'shellfish allergy': ['shellfish', 'shrimp'],
+  'tree nut allergy': ['tree nut', 'nuts']
+};
+
+function constraintSearchTerms(constraint: string): string[] {
+  const normalized = normalizeMatch(constraint);
+  const terms = new Set([
+    normalized,
+    ...(constraintAliases[normalized] ?? [])
+  ]);
+  const meaningfulWords = normalized
+    .split(' ')
+    .filter(
+      (word) =>
+        word.length > 2 && !ignoredConstraintWords.has(word)
+    );
+  const meaningfulPhrase = meaningfulWords.join(' ');
+
+  if (meaningfulPhrase) {
+    terms.add(meaningfulPhrase);
+  }
+
+  for (const word of meaningfulWords) {
+    terms.add(word);
+  }
+
+  return Array.from(terms).flatMap(matchVariants).filter(Boolean);
+}
+
 function ingredientTerms(
   ingredient: CandidateIngredient
 ): Set<string> {
+  const catalogIngredient = findIngredientDetailsById(ingredient.id);
   const terms = [
     ingredient.id,
     ingredient.name,
+    catalogIngredient?.name,
+    catalogIngredient?.category,
+    ...(catalogIngredient?.tags ?? []),
     ...(ingredient.tags ?? [])
-  ].flatMap(matchVariants);
-  return new Set(terms.filter(Boolean));
+  ]
+    .filter((term): term is string => Boolean(term))
+    .flatMap(matchVariants);
+  return new Set(terms);
 }
 
 function ingredientMatchesText(
   ingredient: CandidateIngredient,
   constraint: string
 ): boolean {
-  const normalizedConstraint = normalizeMatch(constraint);
   const terms = ingredientTerms(ingredient);
   const normalizedName = normalizeMatch(ingredient.name);
 
-  return (
-    terms.has(normalizedConstraint) ||
-    normalizedName.includes(normalizedConstraint) ||
-    Array.from(terms).some((term) =>
-      term.includes(normalizedConstraint)
-    )
+  return constraintSearchTerms(constraint).some(
+    (constraintTerm) =>
+      terms.has(constraintTerm) ||
+      (normalizedName.includes(constraintTerm) &&
+        !isNegativeConstraintDescriptor(
+          normalizedName,
+          constraintTerm
+        )) ||
+      Array.from(terms).some((term) =>
+        term.includes(constraintTerm) &&
+        !isNegativeConstraintDescriptor(term, constraintTerm)
+      )
   );
 }
 

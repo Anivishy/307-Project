@@ -10,7 +10,7 @@ import {
   updateGroupRecord
 } from './demo-store';
 import { buildValidatedCandidateSet } from './bundle-validator';
-import { listConstraintsForUsers } from './constraints/store';
+import { listProfileConstraintsForUsers } from './profile-constraints-service';
 
 // The group service owns US7/US8 demo behavior: settings reads/writes plus
 // candidate filtering that depends on missing-ingredient and staples settings.
@@ -139,7 +139,7 @@ export function saveGroupSettings(
   );
 }
 
-export function readBundleCandidates(
+export async function readBundleCandidates(
   groupId: string,
   userId: string
 ) {
@@ -152,7 +152,7 @@ export function readBundleCandidates(
 
   // Validation happens after loading pantry and templates so the response can include
   // both visible candidates and the number filtered out by group policy.
-  const memberConstraints = listConstraintsForUsers(
+  const memberConstraints = await listProfileConstraintsForUsers(
     group.members.map((member) => member.userId)
   );
   const candidateSet = buildValidatedCandidateSet(

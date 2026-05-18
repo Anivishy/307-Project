@@ -12,13 +12,17 @@ import {
   replaceProfileConstraints
 } from '@/lib/profile-constraints-service';
 
+type JsonReadResult =
+  | { ok: true; value: unknown }
+  | { ok: false };
+
 async function readJson(
   request: NextRequest
-): Promise<unknown> {
+): Promise<JsonReadResult> {
   try {
-    return await request.json();
+    return { ok: true, value: await request.json() };
   } catch {
-    return {};
+    return { ok: false };
   }
 }
 
@@ -54,6 +58,14 @@ function validateNeverInclude(
     'invalidIngredientIds',
     'neverIncludeIngredientIds contains ids that do not exist.',
     { invalidIngredientIds: missingIngredientIds }
+  );
+}
+
+function invalidJsonResponse() {
+  return errorResponse(
+    400,
+    'invalidJson',
+    'Request body must be valid JSON.'
   );
 }
 
@@ -97,8 +109,14 @@ export async function POST(request: NextRequest) {
       return userId;
     }
 
+    const payload = await readJson(request);
+
+    if (!payload.ok) {
+      return invalidJsonResponse();
+    }
+
     const parsed = parseConstraintsPayload(
-      await readJson(request),
+      payload.value,
       { partial: false }
     );
 
@@ -138,8 +156,14 @@ export async function PATCH(request: NextRequest) {
       return userId;
     }
 
+    const payload = await readJson(request);
+
+    if (!payload.ok) {
+      return invalidJsonResponse();
+    }
+
     const parsed = parseConstraintsPayload(
-      await readJson(request),
+      payload.value,
       { partial: true }
     );
 

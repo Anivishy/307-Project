@@ -15,7 +15,10 @@ export async function GET(
 ) {
   try {
     const { groupId } = await params;
-    const payload = readBundleCandidates(groupId, getDemoRequestUserId(request));
+    const payload = await readBundleCandidates(
+      groupId,
+      getDemoRequestUserId(request)
+    );
     return NextResponse.json(payload);
   } catch (error) {
     return handleApiError(error);

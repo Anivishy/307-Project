@@ -1,3 +1,4 @@
+import { Plus } from 'lucide-react';
 import { useState } from 'react';
 
 function normalizeTag(value) {
@@ -54,19 +55,27 @@ export function TagInput({
             ))
           )}
         </div>
-        <input
-          className="constraint-input"
-          value={draft}
-          placeholder={placeholder}
-          onBlur={addDraft}
-          onChange={(event) => setDraft(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === 'Enter' || event.key === ',') {
-              event.preventDefault();
-              addDraft();
-            }
-          }}
-        />
+        <div className="tag-input__entry">
+          <input
+            className="constraint-input"
+            value={draft}
+            placeholder={placeholder}
+            onChange={(event) => setDraft(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' || event.key === ',') {
+                event.preventDefault();
+                addDraft();
+              }
+            }}
+          />
+          <button
+            className="button button--dark tag-input__add"
+            type="button"
+            onClick={addDraft}
+            disabled={!draft.trim()}>
+            <Plus size={16} /> Add
+          </button>
+        </div>
       </div>
     </label>
   );

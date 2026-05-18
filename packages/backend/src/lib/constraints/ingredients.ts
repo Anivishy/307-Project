@@ -142,11 +142,60 @@ const ingredients: Ingredient[] = [
     tags: ['sodium']
   },
   {
+    id: 'pepper',
+    name: 'Pepper',
+    category: 'seasoning',
+    commonUnits: ['tsp', 'tbsp', 'g'],
+    tags: ['spice']
+  },
+  {
     id: 'olive-oil',
     name: 'Olive Oil',
     category: 'oil',
     commonUnits: ['tsp', 'tbsp', 'ml'],
     tags: ['fat']
+  },
+  {
+    id: 'butter',
+    name: 'Butter',
+    category: 'dairy',
+    commonUnits: ['tsp', 'tbsp', 'g'],
+    tags: ['dairy', 'lactose', 'fat']
+  },
+  {
+    id: 'basil-leaves',
+    name: 'Basil Leaves',
+    category: 'produce',
+    commonUnits: ['leaves', 'g', 'cup'],
+    tags: ['basil', 'herb']
+  },
+  {
+    id: 'thyme',
+    name: 'Fresh Thyme',
+    category: 'produce',
+    commonUnits: ['sprig', 'tsp', 'tbsp'],
+    tags: ['herb']
+  },
+  {
+    id: 'sesame-oil',
+    name: 'Sesame Oil',
+    category: 'oil',
+    commonUnits: ['tsp', 'tbsp', 'ml'],
+    tags: ['sesame', 'fat']
+  },
+  {
+    id: 'parmesan',
+    name: 'Parmesan',
+    category: 'dairy',
+    commonUnits: ['g', 'oz', 'cup'],
+    tags: ['dairy', 'lactose', 'cheese']
+  },
+  {
+    id: 'saffron-threads',
+    name: 'Saffron Threads',
+    category: 'seasoning',
+    commonUnits: ['pinch', 'tsp', 'tbsp'],
+    tags: ['saffron', 'spice']
   }
 ];
 
@@ -206,6 +255,14 @@ export function findIngredientById(
   return ingredient
     ? summarizeIngredient(ingredient)
     : undefined;
+}
+
+export function findIngredientDetailsById(
+  id: string
+): Ingredient | undefined {
+  return ingredients.find(
+    (item) => item.id === normalizeSearch(id)
+  );
 }
 
 export function findMissingIngredientIds(

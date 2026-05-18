@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { filterCandidatesByHardConstraints } from "@/lib/constraints/validator";
-import { listConstraintsForUsers } from "@/lib/constraints/store";
 import type { CandidateBundle } from "@/lib/constraints/types";
+import { getGroupRecord } from "@/lib/demo-store";
 import { getCurrentUserId } from "@/lib/http/auth";
 import { errorResponse } from "@/lib/http/responses";
+import { listProfileConstraintsForUsers } from "@/lib/profile-constraints-service";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -27,6 +28,10 @@ function isCandidateBundle(value: unknown): value is CandidateBundle {
         typeof ingredient.name === "string",
     );
   });
+}
+
+function hasOwnProperty(value: object, property: string) {
+  return Object.prototype.hasOwnProperty.call(value, property);
 }
 
 async function readJson(request: NextRequest): Promise<unknown> {
@@ -58,26 +63,46 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const groupMemberIds =
-    Array.isArray(payload.groupMemberIds) &&
-    payload.groupMemberIds.every((memberId) => typeof memberId === "string")
-      ? payload.groupMemberIds
-      : [currentUserId];
+  if (hasOwnProperty(payload, "groupMemberIds")) {
+    return errorResponse(
+      400,
+      "unsafeConstraintScope",
+      "groupMemberIds cannot be supplied by the client; pass groupId so the server can resolve group members.",
+    );
+  }
+
+  let constraintUserIds = [currentUserId];
+
+  if (typeof payload.groupId === "string") {
+    const group = getGroupRecord(payload.groupId);
+
+    if (!group) {
+      return errorResponse(404, "groupNotFound", "Group not found.");
+    }
+
+    if (!group.members.some((member) => member.userId === currentUserId)) {
+      return errorResponse(
+        403,
+        "notGroupMember",
+        "Generation requires membership in the requested group.",
+      );
+    }
+
+    constraintUserIds = group.members.map((member) => member.userId);
+  }
 
   const { accepted, rejected } = filterCandidatesByHardConstraints(
     payload.candidates,
-    listConstraintsForUsers(groupMemberIds),
+    await listProfileConstraintsForUsers(constraintUserIds),
   );
-
-  for (const rejectedCandidate of rejected) {
-    console.info("hardConstraintRejected", {
-      candidateId: rejectedCandidate.candidate.id,
-      violations: rejectedCandidate.violations,
-    });
-  }
 
   return NextResponse.json({
     candidates: accepted,
-    rejectedCandidates: rejected,
+    rejectedCandidateCount: rejected.length,
+    rejectedCandidates: rejected.map((rejectedCandidate) => ({
+      candidateId: rejectedCandidate.candidate.id ?? null,
+      reason: "hard_constraints",
+      violationCount: rejectedCandidate.violations.length,
+    })),
   });
 }

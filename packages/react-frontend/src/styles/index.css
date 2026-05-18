@@ -1137,6 +1137,17 @@ img {
   gap: 10px;
 }
 
+.tag-input__entry {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+}
+
+.tag-input__add {
+  min-height: 48px;
+  padding-inline: 14px;
+}
+
 .constraint-chip {
   display: inline-flex;
   align-items: center;
