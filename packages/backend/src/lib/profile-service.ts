@@ -14,6 +14,20 @@ type ProfileCreateInput = {
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+function normalizeEmail(value: unknown) {
+  if (
+    typeof value !== 'string' ||
+    !EMAIL_REGEX.test(value.trim())
+  ) {
+    throw new ApiError(
+      400,
+      'email must be a valid email address.'
+    );
+  }
+
+  return value.trim().toLowerCase();
+}
+
 function normalizeOptionalText(
   value: unknown,
   fieldName: string,
@@ -54,15 +68,7 @@ function serializeProfile(profile: Profile) {
 }
 
 export async function createProfile(input: ProfileCreateInput) {
-  if (
-    typeof input.email !== 'string' ||
-    !EMAIL_REGEX.test(input.email.trim())
-  ) {
-    throw new ApiError(
-      400,
-      'email must be a valid email address.'
-    );
-  }
+  const email = normalizeEmail(input.email);
 
   const id = normalizeOptionalText(input.id, 'id', 36);
 
@@ -74,7 +80,7 @@ export async function createProfile(input: ProfileCreateInput) {
     const profile = await prisma.profile.create({
       data: {
         ...(id ? { id } : {}),
-        email: input.email.trim().toLowerCase(),
+        email,
         displayName: normalizeOptionalText(
           input.displayName,
           'displayName',
@@ -97,6 +103,16 @@ export async function createProfile(input: ProfileCreateInput) {
   }
 }
 
+export async function findProfileByEmail(input: unknown) {
+  const email = normalizeEmail(input);
+
+  const profile = await prisma.profile.findUnique({
+    where: { email }
+  });
+
+  return profile ? serializeProfile(profile) : null;
+}
+
 export async function readProfile(profileId: string) {
   assertUuid(profileId, 'profileId');
 
@@ -112,17 +128,7 @@ export async function readProfile(profileId: string) {
 }
 
 export async function findOrCreateProfileForEmail(input: ProfileCreateInput) {
-  if (
-    typeof input.email !== 'string' ||
-    !EMAIL_REGEX.test(input.email.trim())
-  ) {
-    throw new ApiError(
-      400,
-      'email must be a valid email address.'
-    );
-  }
-
-  const email = input.email.trim().toLowerCase();
+  const email = normalizeEmail(input.email);
   const displayName = normalizeOptionalText(
     input.displayName,
     'displayName',

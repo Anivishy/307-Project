@@ -71,7 +71,7 @@ export function GroupsPage() {
               description: group.description || "Shared pantry group.",
             })),
           );
-          setStatusMessage("Groups loaded from /api/groups using your OTP session profile.");
+          setStatusMessage("Groups loaded from /api/groups using your email session profile.");
         }
       } catch (error) {
         if (!isCancelled) {

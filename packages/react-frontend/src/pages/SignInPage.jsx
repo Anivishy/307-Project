@@ -1,17 +1,39 @@
-import { KeyRound, Mail, ShieldCheck } from "lucide-react";
+import { LockKeyhole, Mail, ShieldCheck, UserRound } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import creamyPan from "../../assets/creamy-pan.jpg";
-import { requestEmailOtp, verifyEmailOtp } from "../lib/authApi.js";
+import { checkAccountStatus, createSupabaseAccount, sendMagicLink, syncProfileSession } from "../lib/authApi.js";
+
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function normalizeEmail(email) {
+  return email.trim().toLowerCase();
+}
+
+function validateForm(form, isSignUp) {
+  const email = normalizeEmail(form.email);
+
+  if (isSignUp && !form.name.trim()) {
+    return "Name is required.";
+  }
+
+  if (!EMAIL_REGEX.test(email)) {
+    return "Enter a valid email address.";
+  }
+
+  if (isSignUp && form.password.length < 8) {
+    return "Password must be at least 8 characters.";
+  }
+
+  return "";
+}
 
 export function SignInPage({ mode = "signin" }) {
   const isSignUp = mode === "signup";
   const navigate = useNavigate();
-  const [form, setForm] = useState({ name: "", email: "", otp: "" });
-  const [step, setStep] = useState("email");
+  const [form, setForm] = useState({ name: "", email: "", password: "" });
   const [touched, setTouched] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [otpPreview, setOtpPreview] = useState("");
   const [serverMessage, setServerMessage] = useState("");
   const [serverTone, setServerTone] = useState("neutral");
 
@@ -19,30 +41,27 @@ export function SignInPage({ mode = "signin" }) {
     if (!touched) {
       return {
         tone: "neutral",
-        message: "Your pantry and group data stay connected after OTP login.",
+        message: isSignUp
+          ? "Confirmation emails open the app and finish account setup."
+          : "Magic links open the app and take you to your groups.",
       };
     }
 
-    if (!form.email.includes("@")) {
-      return { tone: "error", message: "Enter a valid email address." };
+    const validationError = validateForm(form, isSignUp);
+
+    if (validationError) {
+      return { tone: "error", message: validationError };
     }
 
     if (serverMessage && serverTone === "error") {
       return { tone: "error", message: serverMessage };
     }
 
-    if (step === "otp" && form.otp.length !== 6) {
-      return { tone: "error", message: "Enter the 6-digit OTP from the email preview." };
-    }
-
     return {
-      tone: "success",
-      message:
-        step === "otp"
-          ? serverMessage || "OTP ready to verify against the backend."
-          : serverMessage || `OTP ready to send to ${form.email}.`,
+      tone: serverTone === "success" ? "success" : "neutral",
+      message: serverMessage || (isSignUp ? "Ready to create your account." : "Ready to send your magic link."),
     };
-  }, [form.email, form.otp, serverMessage, serverTone, step, touched]);
+  }, [form, isSignUp, serverMessage, serverTone, touched]);
 
   function updateField(event) {
     const { name, value } = event.target;
@@ -55,37 +74,54 @@ export function SignInPage({ mode = "signin" }) {
     setServerMessage("");
     setServerTone("neutral");
 
-    if (!form.email.includes("@")) {
+    const validationError = validateForm(form, isSignUp);
+
+    if (validationError) {
       return;
     }
 
-    if (step === "email") {
-      setIsSubmitting(true);
-      try {
-        const payload = await requestEmailOtp(form.email);
-        setOtpPreview(payload.otpPreview ?? "");
-        setStep("otp");
-        setServerMessage("OTP requested from /api/auth/email-otp/request.");
-        setServerTone("success");
-      } catch (error) {
-        setServerMessage(error instanceof Error ? error.message : "Unable to request OTP.");
-        setServerTone("error");
-      } finally {
-        setIsSubmitting(false);
-      }
-      return;
-    }
+    const email = normalizeEmail(form.email);
 
     setIsSubmitting(true);
     try {
-      await verifyEmailOtp({
-        email: form.email,
-        otp: form.otp,
-        displayName: form.name || "Kartik",
-      });
-      navigate("/groups", { replace: true });
+      if (isSignUp) {
+        const account = await createSupabaseAccount({
+          name: form.name.trim(),
+          email,
+          password: form.password,
+        });
+
+        if (account.session?.access_token) {
+          await syncProfileSession({
+            accessToken: account.session.access_token,
+            displayName: form.name.trim(),
+          });
+          navigate("/groups", { replace: true });
+          return;
+        }
+
+        const accountStatus = await checkAccountStatus(email);
+
+        if (accountStatus.exists) {
+          throw new Error("An account already exists for this email. Sign in instead.");
+        }
+
+        setServerMessage("Check your email to confirm your account. The link will open your groups page.");
+        setServerTone("success");
+        return;
+      }
+
+      const accountStatus = await checkAccountStatus(email);
+
+      if (!accountStatus.exists) {
+        throw new Error("No account exists for this email yet. Create an account first.");
+      }
+
+      await sendMagicLink(email);
+      setServerMessage("Check your email for a magic link. It will open your groups page.");
+      setServerTone("success");
     } catch (error) {
-      setServerMessage(error instanceof Error ? error.message : "Unable to verify OTP.");
+      setServerMessage(error instanceof Error ? error.message : "Unable to continue with email auth.");
       setServerTone("error");
     } finally {
       setIsSubmitting(false);
@@ -108,14 +144,15 @@ export function SignInPage({ mode = "signin" }) {
           <h1 className="auth-title">{isSignUp ? "Start cooking together." : "Your group dinner starts here."}</h1>
           <p className="auth-copy">
             {isSignUp
-              ? "Create an account with a one-time email code to build a pantry and join groups."
-              : "Sign in with a one-time email code to access saved recipes and group meals."}
+              ? "Create an account with your name, email, and password. Supabase will send a confirmation link."
+              : "Sign in with a secure email magic link to access your saved groups and shared pantry."}
           </p>
 
           <form className="auth-form" onSubmit={handleSubmit} noValidate>
             {isSignUp && (
-              <label className="auth-field">
+              <label className="auth-field auth-field--icon">
                 <span>Name</span>
+                <UserRound size={20} />
                 <input name="name" value={form.name} onChange={updateField} placeholder="Kartik" />
               </label>
             )}
@@ -125,17 +162,17 @@ export function SignInPage({ mode = "signin" }) {
               <input name="email" value={form.email} onChange={updateField} placeholder="kartik@example.com" />
             </label>
 
-            {step === "otp" && (
+            {isSignUp && (
               <label className="auth-field auth-field--icon">
-                <span>One-time code</span>
-                <KeyRound size={20} />
+                <span>Password</span>
+                <LockKeyhole size={20} />
                 <input
-                  name="otp"
-                  inputMode="numeric"
-                  maxLength={6}
-                  value={form.otp}
+                  name="password"
+                  type="password"
+                  autoComplete="new-password"
+                  value={form.password}
                   onChange={updateField}
-                  placeholder={otpPreview || "000000"}
+                  placeholder="At least 8 characters"
                 />
               </label>
             )}
@@ -144,17 +181,12 @@ export function SignInPage({ mode = "signin" }) {
               <span>
                 <ShieldCheck size={16} /> Session persists after refresh
               </span>
-              {step === "otp" && (
-                <button type="button" onClick={() => setStep("email")}>
-                  Change email
-                </button>
-              )}
             </div>
 
             <p className={`auth-status auth-status--${formStatus.tone}`}>{formStatus.message}</p>
 
-            <button className="button button--wide" type="submit">
-              {isSubmitting ? "Please wait..." : step === "email" ? "Request OTP" : "Verify OTP"}
+            <button className="button button--wide" type="submit" disabled={isSubmitting}>
+              {isSubmitting ? "Please wait..." : isSignUp ? "Create account" : "Send magic link"}
             </button>
           </form>
 

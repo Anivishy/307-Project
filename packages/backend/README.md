@@ -14,7 +14,9 @@ pnpm dev
 bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+The local API runs on [http://localhost:3001](http://localhost:3001) so the
+frontend can proxy `/api` requests there without colliding with other local
+services.
 
 You can start editing the page by modifying `app/route.ts`. The page auto-updates as you edit the file.
 

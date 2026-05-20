@@ -598,6 +598,24 @@ img {
   font-weight: 700;
 }
 
+.auth-callback-panel {
+  display: grid;
+  gap: 18px;
+  width: min(520px, calc(100vw - 32px));
+  min-height: 100vh;
+  align-content: center;
+  margin: 0 auto;
+  padding: 48px 24px;
+}
+
+.auth-callback-panel > svg {
+  color: var(--color-orange);
+}
+
+.auth-callback-panel .button {
+  max-width: 260px;
+}
+
 .dashboard-greeting {
   display: grid;
   grid-template-columns: auto 1fr auto;

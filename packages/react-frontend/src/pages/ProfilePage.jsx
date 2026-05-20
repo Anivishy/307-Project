@@ -197,7 +197,7 @@ export function ProfilePage() {
         if (!isCancelled) {
           setItems(pantryPayload.ingredients.map(mapApiItem));
           setStatusMessage(
-            'Pantry loaded from /api/ingredients using your OTP session profile.'
+            'Pantry loaded from /api/ingredients using your email session profile.'
           );
         }
       } catch (error) {
