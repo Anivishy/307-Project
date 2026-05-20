@@ -87,37 +87,7 @@ export const recipes = [
   },
 ];
 
-export const pantryItems = [
-  { id: "eggs", name: "Eggs", quantity: "6 pieces", status: "Fresh", color: "orange" },
-  { id: "broccoli", name: "Broccoli", quantity: "2 heads", status: "Use soon", color: "green" },
-  { id: "rice", name: "Rice", quantity: "4 cups", status: "Staple", color: "yellow" },
-  { id: "yogurt", name: "Greek yogurt", quantity: "1 tub", status: "Opened", color: "blue" },
-  { id: "garlic", name: "Garlic", quantity: "8 cloves", status: "Shared", color: "purple" },
-];
-
-export const groups = [
-  {
-    id: "dorm-dinner-crew",
-    name: "Dorm Dinner Crew",
-    members: 4,
-    image: creamyPan,
-    description: "Weeknight recipes using shared groceries.",
-  },
-  {
-    id: "family-sunday",
-    name: "Family Sunday",
-    members: 6,
-    image: flameWok,
-    description: "Big-batch meals with allergy notes.",
-  },
-  {
-    id: "veggie-lab",
-    name: "Veggie Lab",
-    members: 3,
-    image: spicyStirFry,
-    description: "Vegetarian ideas and pantry experiments.",
-  },
-];
+export const groupImages = [creamyPan, flameWok, spicyStirFry];
 
 export const approvalRequests = [
   { id: 1, member: "Ani", item: "2 eggs", recipe: "Breakfast Wraps", remaining: "6 -> 4" },

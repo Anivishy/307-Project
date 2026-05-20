@@ -6,7 +6,7 @@ import { getRequestUserId } from '../../../../lib/request-user';
 export async function POST(request: Request) {
   try {
     const group = await joinUserGroup(
-      getRequestUserId(request),
+      await getRequestUserId(request),
       await request.json()
     );
 

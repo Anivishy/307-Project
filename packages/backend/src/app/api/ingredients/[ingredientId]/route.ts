@@ -15,7 +15,7 @@ export async function PATCH(
   try {
     const { ingredientId } = await params;
     const ingredient = await updateIngredient(
-      getRequestUserId(request),
+      await getRequestUserId(request),
       ingredientId,
       await request.json()
     );
@@ -33,7 +33,7 @@ export async function DELETE(
   try {
     const { ingredientId } = await params;
     await deleteIngredient(
-      getRequestUserId(request),
+      await getRequestUserId(request),
       ingredientId
     );
 

@@ -1,5 +1,9 @@
 import type { Profile } from '../generated/prisma';
 import { ApiError } from './api-error';
+import {
+  normalizeEmail,
+  normalizeOptionalText
+} from './input-normalization';
 import { prisma } from './prisma';
 import { isPrismaError } from './prisma-utils';
 import { assertUuid } from './request-user';
@@ -12,33 +16,6 @@ type ProfileCreateInput = {
   displayName?: unknown;
 };
 
-const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-function normalizeOptionalText(
-  value: unknown,
-  fieldName: string,
-  maxLength: number
-) {
-  if (value === undefined || value === null) {
-    return undefined;
-  }
-
-  if (typeof value !== 'string') {
-    throw new ApiError(400, `${fieldName} must be a string.`);
-  }
-
-  const trimmed = value.trim();
-
-  if (trimmed.length > maxLength) {
-    throw new ApiError(
-      400,
-      `${fieldName} must be ${maxLength} characters or fewer.`
-    );
-  }
-
-  return trimmed || undefined;
-}
-
 function serializeProfile(profile: Profile) {
   // Convert Date objects to ISO strings so API responses are plain JSON.
   return {
@@ -47,23 +24,15 @@ function serializeProfile(profile: Profile) {
     displayName: profile.displayName,
     allergies: profile.allergies,
     medicalRestrictions: profile.medicalRestrictions,
-    neverIncludeIngredientIds: profile.neverIncludeIngredientIds,
+    neverIncludeIngredientIds:
+      profile.neverIncludeIngredientIds,
     createdAt: profile.createdAt.toISOString(),
     updatedAt: profile.updatedAt.toISOString()
   };
 }
 
 export async function createProfile(input: ProfileCreateInput) {
-  if (
-    typeof input.email !== 'string' ||
-    !EMAIL_REGEX.test(input.email.trim())
-  ) {
-    throw new ApiError(
-      400,
-      'email must be a valid email address.'
-    );
-  }
-
+  const email = normalizeEmail(input.email);
   const id = normalizeOptionalText(input.id, 'id', 36);
 
   if (id) {
@@ -74,7 +43,7 @@ export async function createProfile(input: ProfileCreateInput) {
     const profile = await prisma.profile.create({
       data: {
         ...(id ? { id } : {}),
-        email: input.email.trim().toLowerCase(),
+        email,
         displayName: normalizeOptionalText(
           input.displayName,
           'displayName',
@@ -111,32 +80,63 @@ export async function readProfile(profileId: string) {
   return serializeProfile(profile);
 }
 
-export async function findOrCreateProfileForEmail(input: ProfileCreateInput) {
-  if (
-    typeof input.email !== 'string' ||
-    !EMAIL_REGEX.test(input.email.trim())
-  ) {
-    throw new ApiError(
-      400,
-      'email must be a valid email address.'
-    );
+export async function findOrCreateProfileForEmail(
+  input: ProfileCreateInput
+) {
+  const email = normalizeEmail(input.email);
+  const id = normalizeOptionalText(input.id, 'id', 36);
+
+  if (id) {
+    assertUuid(id, 'id');
   }
 
-  const email = input.email.trim().toLowerCase();
   const displayName = normalizeOptionalText(
     input.displayName,
     'displayName',
     120
   );
 
-  const profile = await prisma.profile.upsert({
-    where: { email },
-    update: displayName ? { displayName } : {},
-    create: {
-      email,
-      displayName
-    }
-  });
+  try {
+    if (id) {
+      const existingProfile = await prisma.profile.findUnique({
+        where: { email }
+      });
 
-  return serializeProfile(profile);
+      if (existingProfile) {
+        const profile = await prisma.profile.update({
+          where: { email },
+          data: {
+            id,
+            ...(displayName ? { displayName } : {})
+          }
+        });
+
+        return serializeProfile(profile);
+      }
+    }
+
+    const profile = await prisma.profile.upsert({
+      where: id ? { id } : { email },
+      update: {
+        email,
+        ...(displayName ? { displayName } : {})
+      },
+      create: {
+        ...(id ? { id } : {}),
+        email,
+        displayName
+      }
+    });
+
+    return serializeProfile(profile);
+  } catch (error) {
+    if (isPrismaError(error, 'P2002')) {
+      throw new ApiError(
+        409,
+        'A profile with that email already exists.'
+      );
+    }
+
+    throw error;
+  }
 }

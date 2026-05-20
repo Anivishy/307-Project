@@ -8,7 +8,9 @@ import { getRequestUserId } from '../../../lib/request-user';
 
 export async function GET(request: Request) {
   try {
-    const groups = await listUserGroups(getRequestUserId(request));
+    const groups = await listUserGroups(
+      await getRequestUserId(request)
+    );
     return NextResponse.json({ groups });
   } catch (error) {
     return handleApiError(error);
@@ -18,7 +20,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const group = await createUserGroup(
-      getRequestUserId(request),
+      await getRequestUserId(request),
       await request.json()
     );
 

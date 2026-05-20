@@ -13,7 +13,6 @@ import { IngredientTypeahead } from '../components/IngredientTypeahead.jsx';
 import { PageHeader } from '../components/PageHeader.jsx';
 import { StatusMessage } from '../components/StatusMessage.jsx';
 import { TagInput } from '../components/TagInput.jsx';
-import { pantryItems } from '../data/recipes.js';
 import {
   fetchConstraintIngredientsByIds,
   fetchConstraints,
@@ -28,51 +27,18 @@ import {
 } from '../lib/pantryApi.js';
 import { getSavedSession } from '../lib/session.js';
 
-const fallbackIngredientDatabase = [
-  { id: 'tomatoes', name: 'Tomatoes', defaultUnit: 'whole' },
-  {
-    id: 'garlic-cloves',
-    name: 'Garlic',
-    defaultUnit: 'cloves'
-  },
-  { id: 'pasta', name: 'Pasta', defaultUnit: 'boxes' },
-  {
-    id: 'chicken-fillets',
-    name: 'Chicken fillets',
-    defaultUnit: 'fillets'
-  },
-  { id: 'mushrooms', name: 'Mushrooms', defaultUnit: 'cups' },
-  { id: 'cream', name: 'Cream', defaultUnit: 'cups' },
-  { id: 'rice', name: 'Rice', defaultUnit: 'cups' },
-  { id: 'eggs', name: 'Eggs', defaultUnit: 'pieces' },
-  { id: 'broccoli', name: 'Broccoli', defaultUnit: 'heads' },
-  {
-    id: 'olive-oil',
-    name: 'Olive oil',
-    defaultUnit: 'tbsp'
-  }
-];
-
-const initialPantryItems = pantryItems.map((item) => {
-  const [quantity, ...unitParts] = item.quantity.split(' ');
-  const catalogMatch = fallbackIngredientDatabase.find(
-    (ingredient) =>
-      ingredient.name.toLowerCase() === item.name.toLowerCase()
-  );
-
-  return {
-    ...item,
-    ingredientId: catalogMatch?.id ?? item.id,
-    quantity,
-    unit: unitParts.join(' ')
-  };
-});
-
 const emptyDraft = {
-  ingredientName: 'Tomatoes',
-  quantity: '4',
-  unit: 'whole'
+  ingredientName: '',
+  quantity: '1',
+  unit: ''
 };
+
+function mapCatalogIngredient(ingredient) {
+  return {
+    ...ingredient,
+    defaultUnit: ingredient.commonUnits?.[0] ?? 'units'
+  };
+}
 
 function mapApiItem(item) {
   return {
@@ -89,10 +55,9 @@ function mapApiItem(item) {
 }
 
 export function ProfilePage() {
-  const [items, setItems] = useState(initialPantryItems);
-  const [ingredientDatabase, setIngredientDatabase] = useState(
-    fallbackIngredientDatabase
-  );
+  const [items, setItems] = useState([]);
+  const [ingredientDatabase, setIngredientDatabase] =
+    useState([]);
   const [draft, setDraft] = useState(emptyDraft);
   const [editingId, setEditingId] = useState(null);
   const [statusMessage, setStatusMessage] = useState(
@@ -178,13 +143,7 @@ export function ProfilePage() {
 
         if (!isCancelled) {
           setIngredientDatabase(
-            catalogPayload.ingredients.map((ingredient) => ({
-              ...ingredient,
-              defaultUnit:
-                fallbackIngredientDatabase.find(
-                  (item) => item.id === ingredient.id
-                )?.defaultUnit ?? 'units'
-            }))
+            catalogPayload.ingredients.map(mapCatalogIngredient)
           );
         }
 
@@ -197,15 +156,15 @@ export function ProfilePage() {
         if (!isCancelled) {
           setItems(pantryPayload.ingredients.map(mapApiItem));
           setStatusMessage(
-            'Pantry loaded from /api/ingredients using your OTP session profile.'
+            'Pantry loaded from /api/ingredients using your signed-in profile.'
           );
         }
       } catch (error) {
         if (!isCancelled) {
           setStatusMessage(
             error instanceof Error
-              ? `${error.message} Showing the local pantry preview.`
-              : 'Showing the local pantry preview.'
+              ? error.message
+              : 'Unable to load pantry items.'
           );
         }
       }
@@ -305,16 +264,6 @@ export function ProfilePage() {
       return;
     }
 
-    const nextItem = {
-      id: editingId ?? matchedIngredient.id,
-      ingredientId: matchedIngredient.id,
-      name: matchedIngredient.name,
-      quantity: draft.quantity,
-      unit: draft.unit.trim() || matchedIngredient.defaultUnit,
-      status: editingId ? 'Updated' : 'Canonical',
-      color: editingId ? 'blue' : 'green'
-    };
-
     async function saveBackendItem() {
       try {
         const payload = {
@@ -340,17 +289,10 @@ export function ProfilePage() {
           `${matchedIngredient.name} saved through /api/ingredients.`
         );
       } catch (error) {
-        setItems((current) =>
-          editingId
-            ? current.map((item) =>
-                item.id === editingId ? nextItem : item
-              )
-            : [nextItem, ...current]
-        );
         setStatusMessage(
           error instanceof Error
-            ? `${error.message} Local preview updated.`
-            : `${matchedIngredient.name} saved locally.`
+            ? error.message
+            : `Unable to save ${matchedIngredient.name}.`
         );
       } finally {
         resetDraft();
@@ -382,9 +324,10 @@ export function ProfilePage() {
       } catch (error) {
         setStatusMessage(
           error instanceof Error
-            ? `${error.message} Removed from the local preview.`
-            : `${item?.name ?? 'Ingredient'} removed locally.`
+            ? error.message
+            : `Unable to remove ${item?.name ?? 'Ingredient'}.`
         );
+        return;
       }
 
       setItems((current) =>

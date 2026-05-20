@@ -4,7 +4,7 @@ import type {
   UserConstraints,
   UserConstraintsInput
 } from './constraints/types';
-import { isUuid } from './request-user';
+import { assertUuid } from './request-user';
 
 const constraintProfileSelect = {
   id: true,
@@ -17,12 +17,6 @@ const constraintProfileSelect = {
 async function getPrismaClient() {
   const { prisma } = await import('./prisma');
   return prisma;
-}
-
-function assertValidUserId(userId: string) {
-  if (!isUuid(userId)) {
-    throw new ApiError(400, 'userId must be a valid UUID.');
-  }
 }
 
 function serializeProfileConstraints(profile: {
@@ -45,7 +39,7 @@ function serializeProfileConstraints(profile: {
 export async function readProfileConstraints(
   userId: string
 ): Promise<UserConstraints> {
-  assertValidUserId(userId);
+  assertUuid(userId, 'userId');
 
   const prisma = await getPrismaClient();
   const profile = await prisma.profile.findUnique({
@@ -64,7 +58,7 @@ export async function replaceProfileConstraints(
   userId: string,
   input: UserConstraintsInput
 ): Promise<UserConstraints> {
-  assertValidUserId(userId);
+  assertUuid(userId, 'userId');
 
   const prisma = await getPrismaClient();
   const existingProfile = await prisma.profile.findUnique({
@@ -97,7 +91,7 @@ export async function patchProfileConstraints(
   userId: string,
   input: UserConstraintsInput
 ): Promise<UserConstraints> {
-  assertValidUserId(userId);
+  assertUuid(userId, 'userId');
 
   const prisma = await getPrismaClient();
   const existingProfile = await prisma.profile.findUnique({

@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import { AppLayout } from "./components/AppLayout.jsx";
 import { LandingPage } from "./pages/LandingPage.jsx";
 import { SignInPage } from "./pages/SignInPage.jsx";
+import { AuthCallbackPage } from "./pages/AuthCallbackPage.jsx";
 import { RecipeListPage } from "./pages/RecipeListPage.jsx";
 import { RecipeDetailPage } from "./pages/RecipeDetailPage.jsx";
 import { AddRecipePage } from "./pages/AddRecipePage.jsx";
@@ -17,6 +18,7 @@ export default function App() {
       <Route path="/" element={<LandingPage />} />
       <Route path="/signin" element={<SignInPage mode="signin" />} />
       <Route path="/signup" element={<SignInPage mode="signup" />} />
+      <Route path="/auth/callback" element={<AuthCallbackPage />} />
       <Route element={<AppLayout />}>
         <Route path="/recipes" element={<RecipeListPage />} />
         <Route path="/recipes/:recipeId" element={<RecipeDetailPage />} />

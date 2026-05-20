@@ -8,13 +8,10 @@ import type {
   RejectedCandidate,
   UserConstraints
 } from './types';
-
-function normalizeMatch(value: string): string {
-  return value.trim().toLowerCase().replace(/\s+/g, ' ');
-}
+import { normalizeConstraintToken } from './normalize';
 
 function matchVariants(value: string): string[] {
-  const normalized = normalizeMatch(value);
+  const normalized = normalizeConstraintToken(value);
   const variants = [normalized];
 
   if (normalized.endsWith('s')) {
@@ -39,9 +36,9 @@ function ingredientMatchesText(
   ingredient: CandidateIngredient,
   constraint: string
 ): boolean {
-  const normalizedConstraint = normalizeMatch(constraint);
+  const normalizedConstraint = normalizeConstraintToken(constraint);
   const terms = ingredientTerms(ingredient);
-  const normalizedName = normalizeMatch(ingredient.name);
+  const normalizedName = normalizeConstraintToken(ingredient.name);
 
   return (
     terms.has(normalizedConstraint) ||
@@ -121,8 +118,8 @@ export function validateHardConstraints(
         const neverIncludeMatch =
           constraints.neverIncludeIngredientIds.find(
             (ingredientId) =>
-              normalizeMatch(ingredientId) ===
-                normalizeMatch(ingredient.id) ||
+              normalizeConstraintToken(ingredientId) ===
+                normalizeConstraintToken(ingredient.id) ||
               ingredientMatchesText(ingredient, ingredientId)
           );
 
