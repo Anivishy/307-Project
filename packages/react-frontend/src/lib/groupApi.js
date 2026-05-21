@@ -34,8 +34,11 @@ export function getBundleCandidates(groupId) {
 }
 
 export function selectBundleCandidate(groupId, selection) {
-  return apiFetch(`/api/groups/${groupId}/bundle-candidates/select`, {
-    method: 'POST',
-    body: JSON.stringify(selection)
-  });
+  return apiFetch(
+    `/api/groups/${groupId}/bundle-candidates/select`,
+    {
+      method: 'POST',
+      body: JSON.stringify(selection)
+    }
+  );
 }

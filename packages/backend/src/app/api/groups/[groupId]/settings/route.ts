@@ -1,12 +1,20 @@
 import { NextResponse } from "next/server";
-import { handleApiError } from "../../../../../lib/api-response";
-import { DEMO_ADMIN_USER_ID } from "../../../../../lib/demo-store";
-import { readGroupSettings, saveGroupSettings } from "../../../../../lib/group-service";
+import { handleApiError } from "@/lib/api-response";
+import { DEMO_ADMIN_USER_ID } from "@/lib/demo-store";
+import { readGroupSettings, saveGroupSettings } from "@/lib/group-service";
+import { parseBearerToken } from "@/lib/request-user";
+import { getSupabaseUserFromAccessToken } from "@/lib/supabase-auth";
 
-function getDemoRequestUserId(request: Request) {
-  // Demo-only fallback: the US7/US8 prototype can be opened without a real auth session.
-  // Database-backed routes use lib/request-user.ts and require a UUID x-user-id header.
-  return request.headers.get("x-user-id") ?? DEMO_ADMIN_USER_ID;
+async function getDemoOrAuthenticatedUserId(request: Request) {
+  const token = parseBearerToken(request.headers.get("authorization"));
+
+  if (token) {
+    const user = await getSupabaseUserFromAccessToken(token);
+    return user.id;
+  }
+
+  // Demo-only fallback: the restored US7/US8 prototype can run without a real session.
+  return request.headers.get("x-demo-user-id") ?? DEMO_ADMIN_USER_ID;
 }
 
 export async function GET(
@@ -15,7 +23,7 @@ export async function GET(
 ) {
   try {
     const { groupId } = await params;
-    const payload = readGroupSettings(groupId, getDemoRequestUserId(request));
+    const payload = readGroupSettings(groupId, await getDemoOrAuthenticatedUserId(request));
     return NextResponse.json(payload);
   } catch (error) {
     return handleApiError(error);
@@ -62,7 +70,7 @@ export async function PATCH(
     }
 
     // Only pass fields that survived validation; undefined means "do not change this setting."
-    const payload = saveGroupSettings(groupId, getDemoRequestUserId(request), {
+    const payload = saveGroupSettings(groupId, await getDemoOrAuthenticatedUserId(request), {
       allowMissingIngredients:
         typeof body.allowMissingIngredients === "boolean" ? body.allowMissingIngredients : undefined,
       staplesEnabled: typeof body.staplesEnabled === "boolean" ? body.staplesEnabled : undefined,

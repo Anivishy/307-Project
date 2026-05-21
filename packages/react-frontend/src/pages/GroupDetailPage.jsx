@@ -11,7 +11,7 @@ import { Link, useParams } from 'react-router-dom';
 import { EmptyState } from '../components/EmptyState.jsx';
 import { GlassIconButton } from '../components/GlassIconButton.jsx';
 import { StatusMessage } from '../components/StatusMessage.jsx';
-import { groups } from '../data/recipes.js';
+import { groupImages } from '../data/recipes.js';
 import {
   getBundleCandidates,
   getGroupSettings,
@@ -23,9 +23,17 @@ function formatMissingItem(item) {
   return `${item.quantityNeeded} ${item.unit} ${item.name}`;
 }
 
+function getGroupImage(groupId = '') {
+  const imageIndex = [...groupId].reduce(
+    (total, character) => total + character.charCodeAt(0),
+    0
+  );
+
+  return groupImages[imageIndex % groupImages.length];
+}
+
 export function GroupDetailPage() {
   const { groupId } = useParams();
-  const group = groups.find((item) => item.id === groupId);
   const [settings, setSettings] = useState(null);
   const [candidates, setCandidates] = useState([]);
   const [candidateSet, setCandidateSet] = useState(null);
@@ -59,7 +67,7 @@ export function GroupDetailPage() {
   }
 
   useEffect(() => {
-    if (!group) {
+    if (!groupId) {
       return undefined;
     }
 
@@ -72,8 +80,8 @@ export function GroupDetailPage() {
       try {
         const [settingsPayload, candidatePayload] =
           await Promise.all([
-            getGroupSettings(group.id),
-            getBundleCandidates(group.id)
+            getGroupSettings(groupId),
+            getBundleCandidates(groupId)
           ]);
 
         if (isCancelled) {
@@ -103,7 +111,7 @@ export function GroupDetailPage() {
     return () => {
       isCancelled = true;
     };
-  }, [group]);
+  }, [groupId]);
 
   async function handleToggleChange(event) {
     const nextValue = event.target.checked;
@@ -112,7 +120,7 @@ export function GroupDetailPage() {
 
     try {
       const updatedSettings = await updateGroupSettings(
-        group.id,
+        groupId,
         {
           allowMissingIngredients: nextValue
         }
@@ -131,7 +139,7 @@ export function GroupDetailPage() {
 
   async function refreshCandidates(nextSettings) {
     const updatedCandidates = await getBundleCandidates(
-      group.id
+      groupId
     );
     setSettings(nextSettings);
     setCustomStaplesDraft(nextSettings.customStaples);
@@ -144,7 +152,7 @@ export function GroupDetailPage() {
     setErrorMessage('');
 
     try {
-      const nextSettings = await updateGroupSettings(group.id, {
+      const nextSettings = await updateGroupSettings(groupId, {
         staplesEnabled: nextValue,
         customStaples: customStaplesDraft.map((item) => item.id)
       });
@@ -219,7 +227,7 @@ export function GroupDetailPage() {
     setErrorMessage('');
 
     try {
-      const nextSettings = await updateGroupSettings(group.id, {
+      const nextSettings = await updateGroupSettings(groupId, {
         staplesEnabled: settings.staplesEnabled,
         customStaples: customStaplesDraft.map((item) => item.id)
       });
@@ -241,7 +249,7 @@ export function GroupDetailPage() {
     setErrorMessage("");
 
     try {
-      const updatedCandidates = await getBundleCandidates(group.id);
+      const updatedCandidates = await getBundleCandidates(groupId);
       applyCandidatePayload(updatedCandidates);
       setStaleCandidate(null);
       setSelectionStatus({
@@ -264,13 +272,13 @@ export function GroupDetailPage() {
     setErrorMessage("");
 
     try {
-      const result = await selectBundleCandidate(group.id, {
+      const result = await selectBundleCandidate(groupId, {
         bundleId: candidate.id,
         pantrySnapshotVersion: candidateSet.pantrySnapshotVersion,
         activeBundleVersion: candidateSet.activeBundleVersion,
         force,
       });
-      const updatedCandidates = await getBundleCandidates(group.id);
+      const updatedCandidates = await getBundleCandidates(groupId);
 
       applyCandidatePayload(updatedCandidates);
       setStaleCandidate(null);
@@ -295,7 +303,7 @@ export function GroupDetailPage() {
     }
   }
 
-  if (!group) {
+  if (!groupId) {
     return (
       <section className="screen">
         <EmptyState
@@ -311,10 +319,16 @@ export function GroupDetailPage() {
     );
   }
 
+  const groupName = settings?.groupName ?? 'Group';
+  const groupDescription =
+    settings?.viewerRole === 'admin'
+      ? 'Manage group settings, staples, and active bundle selection.'
+      : 'Review group settings, staples, and available bundle candidates.';
+
   return (
     <section className="screen screen--full group-detail-screen">
       <div className="group-detail-hero">
-        <img src={group.image} alt={group.name} />
+        <img src={getGroupImage(groupId)} alt={groupName} />
         <div className="group-detail-hero__shade" />
         <Link
           className="detail-back-button"
@@ -331,10 +345,14 @@ export function GroupDetailPage() {
 
       <article className="group-detail-panel">
         <div className="detail-handle" />
-        <p className="eyebrow">{group.members} members</p>
-        <h1>{group.name}</h1>
+        <p className="eyebrow">
+          {settings?.viewerRole === 'admin'
+            ? 'Admin controls'
+            : 'Group details'}
+        </p>
+        <h1>{groupName}</h1>
         <p className="recipe-detail-description">
-          {group.description}
+          {groupDescription}
         </p>
 
         <section className="settings-card surface-card">

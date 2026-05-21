@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server';
-import { handleApiError } from '../../../../lib/api-response';
+import { handleApiError } from '@/lib/api-response';
 import {
   deleteIngredient,
   updateIngredient
-} from '../../../../lib/ingredient-service';
-import { getRequestUserId } from '../../../../lib/request-user';
+} from '@/lib/ingredient-service';
+import { getRequestUserId } from '@/lib/request-user';
 
 // PATCH and DELETE are scoped by both ingredientId and the caller's user id.
 // That ownership check is what enforces "users manage their own pantry items."
@@ -15,7 +15,7 @@ export async function PATCH(
   try {
     const { ingredientId } = await params;
     const ingredient = await updateIngredient(
-      getRequestUserId(request),
+      await getRequestUserId(request),
       ingredientId,
       await request.json()
     );
@@ -33,7 +33,7 @@ export async function DELETE(
   try {
     const { ingredientId } = await params;
     await deleteIngredient(
-      getRequestUserId(request),
+      await getRequestUserId(request),
       ingredientId
     );
 

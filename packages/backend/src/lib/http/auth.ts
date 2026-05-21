@@ -1,11 +1,18 @@
-import type { NextRequest } from "next/server";
+import type { NextRequest } from 'next/server';
+import { parseBearerToken } from '../request-user';
+import { getSupabaseUserFromAccessToken } from '../supabase-auth';
 
-export function getCurrentUserId(request: NextRequest): string | null {
-  const explicitUserId = request.headers.get("x-user-id")?.trim();
+export async function getCurrentUserId(
+  request: NextRequest
+): Promise<string | null> {
+  const token = parseBearerToken(
+    request.headers.get('authorization')
+  );
 
-  if (explicitUserId) {
-    return explicitUserId;
+  if (!token) {
+    return null;
   }
 
-  return null;
+  const user = await getSupabaseUserFromAccessToken(token);
+  return user.id;
 }

@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+import { ApiError } from '@/lib/api-error';
 import { findMissingIngredientIds } from '@/lib/constraints/ingredients';
 import { parseConstraintsPayload } from '@/lib/constraints/normalize';
 import type { UserConstraintsInput } from '@/lib/constraints/types';
-import { ApiError } from '@/lib/api-error';
 import { getCurrentUserId } from '@/lib/http/auth';
 import { errorResponse } from '@/lib/http/responses';
 import {
@@ -22,10 +22,10 @@ async function readJson(
   }
 }
 
-function requireUserId(
+async function requireUserId(
   request: NextRequest
-): string | NextResponse {
-  const userId = getCurrentUserId(request);
+): Promise<string | NextResponse> {
+  const userId = await getCurrentUserId(request);
 
   if (!userId) {
     return errorResponse(
@@ -75,7 +75,7 @@ function handleRouteError(error: unknown) {
 
 export async function GET(request: NextRequest) {
   try {
-    const userId = requireUserId(request);
+    const userId = await requireUserId(request);
 
     if (typeof userId !== 'string') {
       return userId;
@@ -91,7 +91,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const userId = requireUserId(request);
+    const userId = await requireUserId(request);
 
     if (typeof userId !== 'string') {
       return userId;
@@ -132,7 +132,7 @@ export async function POST(request: NextRequest) {
 
 export async function PATCH(request: NextRequest) {
   try {
-    const userId = requireUserId(request);
+    const userId = await requireUserId(request);
 
     if (typeof userId !== 'string') {
       return userId;

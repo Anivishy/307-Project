@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
-import { handleApiError } from '../../../../lib/api-response';
-import { readProfile } from '../../../../lib/profile-service';
+import { handleApiError } from '@/lib/api-response';
+import { readProfile } from '@/lib/profile-service';
 
 // GET /api/profiles/[profileId] is a direct lookup route; [profileId] comes from the folder name.
 export async function GET(

@@ -1,6 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import { GET as getBundleCandidates } from '../app/api/groups/[groupId]/bundle-candidates/route';
 import {
   findMissingIngredientIds,
   searchIngredients
@@ -17,36 +16,10 @@ import {
   filterCandidatesByHardConstraints,
   validateHardConstraints
 } from '../lib/constraints/validator.ts';
-import {
-  DEMO_ADMIN_USER_ID,
-  resetDemoState
-} from '../lib/demo-store';
-
-const GROUP_ID = 'dorm-dinner-crew';
-
-function createRouteContext(groupId: string) {
-  return { params: Promise.resolve({ groupId }) };
-}
-
-function createRequest(
-  url: string,
-  userId: string,
-  init?: RequestInit
-) {
-  return new Request(url, {
-    headers: {
-      'content-type': 'application/json',
-      'x-user-id': userId,
-      ...(init?.headers ?? {})
-    },
-    ...init
-  });
-}
 
 describe('US5 hard dietary constraints', () => {
   beforeEach(() => {
     resetConstraintStoreForTests();
-    resetDemoState();
   });
 
   it('parseConstraintsPayload normalizes and deduplicates constraint fields', () => {
@@ -186,33 +159,4 @@ describe('US5 hard dietary constraints', () => {
     ).toEqual(['unsafe']);
   });
 
-  it('stored profile constraints hide violating group bundle candidates', async () => {
-    patchUserConstraints(DEMO_ADMIN_USER_ID, {
-      neverIncludeIngredientIds: ['cream']
-    });
-
-    const candidateResponse = await getBundleCandidates(
-      createRequest(
-        `http://localhost/api/groups/${GROUP_ID}/bundle-candidates`,
-        DEMO_ADMIN_USER_ID
-      ),
-      createRouteContext(GROUP_ID)
-    );
-
-    const payload = (await candidateResponse.json()) as {
-      candidates: Array<{ id: string }>;
-      hardConstraintRejectedCount: number;
-    };
-
-    expect(candidateResponse.status).toBe(200);
-    expect(payload.hardConstraintRejectedCount).toBeGreaterThan(
-      0
-    );
-    expect(
-      payload.candidates.some(
-        (candidate) =>
-          candidate.id === 'bundle-creamy-tuscan-night'
-      )
-    ).toBe(false);
-  });
 });

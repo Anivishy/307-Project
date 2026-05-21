@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
-import { handleApiError } from '../../../lib/api-response';
-import { createProfile } from '../../../lib/profile-service';
+import { handleApiError } from '@/lib/api-response';
+import { createProfile } from '@/lib/profile-service';
 
 // POST /api/profiles creates the persistent user record required before pantry data can belong to someone.
 export async function POST(request: Request) {

@@ -1,92 +1,119 @@
-import { KeyRound, Mail, ShieldCheck } from "lucide-react";
-import { useMemo, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import creamyPan from "../../assets/creamy-pan.jpg";
-import { requestEmailOtp, verifyEmailOtp } from "../lib/authApi.js";
+import {
+  KeyRound,
+  Mail,
+  ShieldCheck,
+  User
+} from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import creamyPan from '../../assets/creamy-pan.jpg';
+import {
+  signInWithPassword,
+  signUpWithPassword
+} from '../lib/authApi.js';
 
-export function SignInPage({ mode = "signin" }) {
-  const isSignUp = mode === "signup";
+export function SignInPage({ mode = 'signin' }) {
+  const isSignUp = mode === 'signup';
   const navigate = useNavigate();
-  const [form, setForm] = useState({ name: "", email: "", otp: "" });
-  const [step, setStep] = useState("email");
+  const [form, setForm] = useState({
+    name: '',
+    email: '',
+    password: ''
+  });
   const [touched, setTouched] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [otpPreview, setOtpPreview] = useState("");
-  const [serverMessage, setServerMessage] = useState("");
-  const [serverTone, setServerTone] = useState("neutral");
+  const [serverMessage, setServerMessage] = useState('');
+  const [serverTone, setServerTone] = useState('neutral');
 
   const formStatus = useMemo(() => {
-    if (!touched) {
+    if (serverMessage) {
       return {
-        tone: "neutral",
-        message: "Your pantry and group data stay connected after OTP login.",
+        tone: serverTone,
+        message: serverMessage
       };
     }
 
-    if (!form.email.includes("@")) {
-      return { tone: "error", message: "Enter a valid email address." };
-    }
-
-    if (serverMessage && serverTone === "error") {
-      return { tone: "error", message: serverMessage };
-    }
-
-    if (step === "otp" && form.otp.length !== 6) {
-      return { tone: "error", message: "Enter the 6-digit OTP from the email preview." };
+    if (touched && !form.email.includes('@')) {
+      return {
+        tone: 'error',
+        message: 'Enter a valid email address.'
+      };
     }
 
     return {
-      tone: "success",
-      message:
-        step === "otp"
-          ? serverMessage || "OTP ready to verify against the backend."
-          : serverMessage || `OTP ready to send to ${form.email}.`,
+      tone: 'neutral',
+      message: isSignUp
+        ? 'Create a password to keep your pantry and groups connected.'
+        : 'Sign in with your email and password.'
     };
-  }, [form.email, form.otp, serverMessage, serverTone, step, touched]);
+  }, [
+    form.email,
+    isSignUp,
+    serverMessage,
+    serverTone,
+    touched
+  ]);
 
   function updateField(event) {
     const { name, value } = event.target;
     setForm((current) => ({ ...current, [name]: value }));
+    setServerMessage('');
+    setServerTone('neutral');
   }
 
   async function handleSubmit(event) {
     event.preventDefault();
     setTouched(true);
-    setServerMessage("");
-    setServerTone("neutral");
+    setServerMessage('');
+    setServerTone('neutral');
 
-    if (!form.email.includes("@")) {
+    if (!form.email.includes('@')) {
       return;
     }
 
-    if (step === "email") {
-      setIsSubmitting(true);
-      try {
-        const payload = await requestEmailOtp(form.email);
-        setOtpPreview(payload.otpPreview ?? "");
-        setStep("otp");
-        setServerMessage("OTP requested from /api/auth/email-otp/request.");
-        setServerTone("success");
-      } catch (error) {
-        setServerMessage(error instanceof Error ? error.message : "Unable to request OTP.");
-        setServerTone("error");
-      } finally {
-        setIsSubmitting(false);
-      }
+    if (isSignUp && !form.name.trim()) {
+      setServerMessage('Enter your name.');
+      setServerTone('error');
+      return;
+    }
+
+    if (form.password.length < 8) {
+      setServerMessage('Password must be at least 8 characters.');
+      setServerTone('error');
       return;
     }
 
     setIsSubmitting(true);
     try {
-      await verifyEmailOtp({
-        email: form.email,
-        otp: form.otp,
-        displayName: form.name || "Kartik",
-      });
-      navigate("/groups", { replace: true });
+      if (isSignUp) {
+        const payload = await signUpWithPassword({
+          email: form.email,
+          password: form.password,
+          displayName: form.name.trim()
+        });
+        if (payload.requiresEmailConfirmation) {
+          setServerMessage(
+            `If ${payload.email} is new, check your inbox to confirm the account. If you already signed up, sign in with your password.`
+          );
+          setServerTone('success');
+          return;
+        }
+      } else {
+        await signInWithPassword({
+          email: form.email,
+          password: form.password
+        });
+      }
+      navigate('/groups', { replace: true });
     } catch (error) {
-      setServerMessage(error instanceof Error ? error.message : "Unable to verify OTP.");
-      setServerTone("error");
+      setServerMessage(
+        error instanceof Error
+          ? error.message
+          : isSignUp
+            ? 'We could not create your account. Try again shortly.'
+            : 'We could not sign you in. Check your email and password.'
+      );
+      setServerTone('error');
     } finally {
       setIsSubmitting(false);
     }
@@ -104,63 +131,91 @@ export function SignInPage({ mode = "signin" }) {
         </section>
 
         <section className="auth-panel">
-          <p className="eyebrow">{isSignUp ? "Create account" : "Welcome back"}</p>
-          <h1 className="auth-title">{isSignUp ? "Start cooking together." : "Your group dinner starts here."}</h1>
+          <p className="eyebrow">
+            {isSignUp ? 'Create account' : 'Welcome back'}
+          </p>
+          <h1 className="auth-title">
+            {isSignUp
+              ? 'Start cooking together.'
+              : 'Your group dinner starts here.'}
+          </h1>
           <p className="auth-copy">
             {isSignUp
-              ? "Create an account with a one-time email code to build a pantry and join groups."
-              : "Sign in with a one-time email code to access saved recipes and group meals."}
+              ? 'Create your account with an email and password. If email confirmation is enabled, check your inbox before signing in.'
+              : 'Use your password to get back to saved recipes, pantry items, and group meals.'}
           </p>
 
-          <form className="auth-form" onSubmit={handleSubmit} noValidate>
-            {isSignUp && (
-              <label className="auth-field">
-                <span>Name</span>
-                <input name="name" value={form.name} onChange={updateField} placeholder="Kartik" />
-              </label>
-            )}
+          <form
+            className="auth-form"
+            onSubmit={handleSubmit}
+            noValidate>
             <label className="auth-field auth-field--icon">
               <span>Email address</span>
               <Mail size={20} />
-              <input name="email" value={form.email} onChange={updateField} placeholder="kartik@example.com" />
+              <input
+                name="email"
+                value={form.email}
+                onChange={updateField}
+                placeholder="kartik@example.com"
+              />
             </label>
 
-            {step === "otp" && (
+            {isSignUp && (
               <label className="auth-field auth-field--icon">
-                <span>One-time code</span>
-                <KeyRound size={20} />
+                <span>Name</span>
+                <User size={20} />
                 <input
-                  name="otp"
-                  inputMode="numeric"
-                  maxLength={6}
-                  value={form.otp}
+                  name="name"
+                  value={form.name}
                   onChange={updateField}
-                  placeholder={otpPreview || "000000"}
+                  placeholder="Kartik"
                 />
               </label>
             )}
 
+            <label className="auth-field auth-field--icon">
+              <span>Password</span>
+              <KeyRound size={20} />
+              <input
+                name="password"
+                type="password"
+                value={form.password}
+                onChange={updateField}
+                placeholder="At least 8 characters"
+              />
+            </label>
+
             <div className="auth-options">
               <span>
-                <ShieldCheck size={16} /> Session persists after refresh
+                <ShieldCheck size={16} /> Session persists after
+                refresh
               </span>
-              {step === "otp" && (
-                <button type="button" onClick={() => setStep("email")}>
-                  Change email
-                </button>
-              )}
             </div>
 
-            <p className={`auth-status auth-status--${formStatus.tone}`}>{formStatus.message}</p>
+            <p
+              className={`auth-status auth-status--${formStatus.tone}`}>
+              {formStatus.message}
+            </p>
 
-            <button className="button button--wide" type="submit">
-              {isSubmitting ? "Please wait..." : step === "email" ? "Request OTP" : "Verify OTP"}
+            <button
+              className="button button--wide"
+              type="submit"
+              disabled={isSubmitting}>
+              {isSubmitting
+                ? 'Please wait...'
+                : isSignUp
+                  ? 'Create account'
+                  : 'Sign in'}
             </button>
           </form>
 
           <p className="auth-switch">
-            {isSignUp ? "Already have an account?" : "New here?"}{" "}
-            <Link to={isSignUp ? "/signin" : "/signup"}>{isSignUp ? "Sign in" : "Create account"}</Link>
+            {isSignUp
+              ? 'Already have an account?'
+              : 'New here?'}{' '}
+            <Link to={isSignUp ? '/signin' : '/signup'}>
+              {isSignUp ? 'Sign in' : 'Create account'}
+            </Link>
           </p>
         </section>
       </main>

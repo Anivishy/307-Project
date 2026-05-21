@@ -3,50 +3,14 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { EmptyState } from "../components/EmptyState.jsx";
 import { PageHeader } from "../components/PageHeader.jsx";
-import { groups } from "../data/recipes.js";
+import { groupImages } from "../data/recipes.js";
 import { createGroup, getGroups, joinGroup } from "../lib/groupApi.js";
 import { getSavedSession } from "../lib/session.js";
 
-const initialGroups = groups.map((group, index) => ({
-  ...group,
-  inviteCode: index === 0 ? "DORM-482" : index === 1 ? "FAM-114" : "VEG-330",
-  role: index === 0 ? "Admin" : "Member",
-}));
-
-const joinableGroups = [
-  {
-    id: "leon-pasta-lab",
-    name: "Leon Pasta Lab",
-    members: 2,
-    image: groups[2].image,
-    description: "Testing quick pasta bundles after class.",
-    inviteCode: "LEON-204",
-    role: "Member",
-  },
-];
-
-function slugify(value) {
-  return value
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-}
-
-function buildInviteCode(name, count) {
-  const prefix = name
-    .replace(/[^a-zA-Z]/g, "")
-    .slice(0, 4)
-    .toUpperCase()
-    .padEnd(4, "X");
-
-  return `${prefix}-${String(240 + count).padStart(3, "0")}`;
-}
-
 export function GroupsPage() {
-  const [groupList, setGroupList] = useState(initialGroups);
-  const [newGroupName, setNewGroupName] = useState("Study Dinner Crew");
-  const [joinCode, setJoinCode] = useState("LEON-204");
+  const [groupList, setGroupList] = useState([]);
+  const [newGroupName, setNewGroupName] = useState("");
+  const [joinCode, setJoinCode] = useState("");
   const [statusMessage, setStatusMessage] = useState("Invite codes connect members to the same shared pantry.");
   const hasGroups = groupList.length > 0;
 
@@ -67,11 +31,11 @@ export function GroupsPage() {
           setGroupList(
             payload.groups.map((group, index) => ({
               ...group,
-              image: groups[index % groups.length].image,
+              image: groupImages[index % groupImages.length],
               description: group.description || "Shared pantry group.",
             })),
           );
-          setStatusMessage("Groups loaded from /api/groups using your OTP session profile.");
+          setStatusMessage("Groups loaded from /api/groups using your signed-in profile.");
         }
       } catch (error) {
         if (!isCancelled) {
@@ -96,24 +60,6 @@ export function GroupsPage() {
       return;
     }
 
-    const id = slugify(trimmedName);
-    const alreadyExists = groupList.some((group) => group.id === id);
-
-    if (alreadyExists) {
-      setStatusMessage("That group already exists in your dashboard.");
-      return;
-    }
-
-    const fallbackGroup = {
-      id,
-      name: trimmedName,
-      members: 1,
-      image: groups[0].image,
-      description: "New shared pantry group.",
-      inviteCode: buildInviteCode(trimmedName, groupList.length),
-      role: "Admin",
-    };
-
     async function createBackendGroup() {
       try {
         const createdGroup = await createGroup({
@@ -122,19 +68,14 @@ export function GroupsPage() {
         });
         const displayGroup = {
           ...createdGroup,
-          image: groups[0].image,
+          image: groupImages[0],
           description: createdGroup.description || "New shared pantry group.",
         };
 
         setGroupList((current) => [displayGroup, ...current]);
         setStatusMessage(`${trimmedName} created in Supabase. Share ${createdGroup.inviteCode}.`);
       } catch (error) {
-        setGroupList((current) => [fallbackGroup, ...current]);
-        setStatusMessage(
-          error instanceof Error
-            ? `${error.message} Showing a local preview instead.`
-            : "Backend unavailable. Showing a local preview instead.",
-        );
+        setStatusMessage(error instanceof Error ? error.message : "Unable to create group.");
       } finally {
         setNewGroupName("");
       }
@@ -147,7 +88,6 @@ export function GroupsPage() {
     event.preventDefault();
     const normalizedCode = joinCode.trim().toUpperCase();
     const alreadyJoined = groupList.find((group) => group.inviteCode === normalizedCode);
-    const joinableGroup = joinableGroups.find((group) => group.inviteCode === normalizedCode);
 
     if (alreadyJoined) {
       setStatusMessage(`You are already in ${alreadyJoined.name}. Duplicate joins are blocked.`);
@@ -160,20 +100,14 @@ export function GroupsPage() {
         setGroupList((current) => [
           {
             ...joinedGroup,
-            image: groups[1].image,
+            image: groupImages[1],
             description: joinedGroup.description || "Shared pantry group.",
           },
           ...current,
         ]);
         setStatusMessage(`Joined ${joinedGroup.name} through /api/groups/join as a member.`);
       } catch (error) {
-        if (!joinableGroup) {
-          setStatusMessage(error instanceof Error ? error.message : "Invite code not found.");
-          return;
-        }
-
-        setGroupList((current) => [{ ...joinableGroup, members: joinableGroup.members + 1 }, ...current]);
-        setStatusMessage(`Joined ${joinableGroup.name} as a local preview member.`);
+        setStatusMessage(error instanceof Error ? error.message : "Invite code not found.");
       } finally {
         setJoinCode("");
       }

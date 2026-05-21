@@ -13,7 +13,7 @@ function createRequest(url: string, userId: string, init?: RequestInit) {
   return new Request(url, {
     headers: {
       "content-type": "application/json",
-      "x-user-id": userId,
+      "x-demo-user-id": userId,
       ...(init?.headers ?? {}),
     },
     ...init,

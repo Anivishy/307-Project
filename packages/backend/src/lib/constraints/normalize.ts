@@ -16,12 +16,14 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function normalizeToken(value: string): string {
+export function normalizeConstraintToken(value: string): string {
   return value.trim().toLowerCase().replace(/\s+/g, " ");
 }
 
 function normalizeList(values: string[]): string[] {
-  return Array.from(new Set(values.map(normalizeToken).filter(Boolean)));
+  return Array.from(
+    new Set(values.map(normalizeConstraintToken).filter(Boolean)),
+  );
 }
 
 function listIssue(field: ConstraintField): string {

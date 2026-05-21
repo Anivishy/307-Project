@@ -1,5 +1,13 @@
-import type { Group, GroupMember, GroupRole } from '../generated/prisma';
+import type {
+  Group,
+  GroupMember,
+  GroupRole
+} from '../generated/prisma';
 import { ApiError } from './api-error';
+import {
+  normalizeOptionalText,
+  normalizeRequiredText
+} from './input-normalization';
 import { prisma } from './prisma';
 import { assertUuid } from './request-user';
 
@@ -16,50 +24,8 @@ type GroupWithMembers = Group & {
   members: GroupMember[];
 };
 
-function normalizeText(value: unknown, fieldName: string, maxLength: number) {
-  if (typeof value !== 'string' || value.trim().length === 0) {
-    throw new ApiError(400, `${fieldName} is required.`);
-  }
-
-  const trimmed = value.trim();
-
-  if (trimmed.length > maxLength) {
-    throw new ApiError(
-      400,
-      `${fieldName} must be ${maxLength} characters or fewer.`
-    );
-  }
-
-  return trimmed;
-}
-
-function normalizeOptionalText(
-  value: unknown,
-  fieldName: string,
-  maxLength: number
-) {
-  if (value === undefined || value === null) {
-    return undefined;
-  }
-
-  if (typeof value !== 'string') {
-    throw new ApiError(400, `${fieldName} must be a string.`);
-  }
-
-  const trimmed = value.trim();
-
-  if (trimmed.length > maxLength) {
-    throw new ApiError(
-      400,
-      `${fieldName} must be ${maxLength} characters or fewer.`
-    );
-  }
-
-  return trimmed || undefined;
-}
-
 function normalizeInviteCode(value: unknown) {
-  const inviteCode = normalizeText(value, 'inviteCode', 32)
+  const inviteCode = normalizeRequiredText(value, 'inviteCode', 32)
     .toUpperCase()
     .replace(/\s+/g, '');
 
@@ -79,7 +45,10 @@ function buildInviteCode(name: string) {
     .slice(0, 5)
     .toUpperCase()
     .padEnd(5, 'X');
-  const suffix = Math.random().toString(36).slice(2, 6).toUpperCase();
+  const suffix = Math.random()
+    .toString(36)
+    .slice(2, 6)
+    .toUpperCase();
 
   return `${prefix}-${suffix}`;
 }
@@ -88,7 +57,10 @@ function roleLabel(role: GroupRole) {
   return role === 'MEMBER' ? 'Member' : 'Admin';
 }
 
-function serializeGroup(group: GroupWithMembers, viewerId: string) {
+function serializeGroup(
+  group: GroupWithMembers,
+  viewerId: string
+) {
   const viewerMembership = group.members.find(
     (member) => member.profileId === viewerId
   );
@@ -98,7 +70,9 @@ function serializeGroup(group: GroupWithMembers, viewerId: string) {
     name: group.name,
     description: group.description,
     inviteCode: group.inviteCode,
-    role: viewerMembership ? roleLabel(viewerMembership.role) : null,
+    role: viewerMembership
+      ? roleLabel(viewerMembership.role)
+      : null,
     members: group.members.length,
     pantrySnapshotVersion: group.pantrySnapshotVersion,
     activeBundleVersion: group.activeBundleVersion,
@@ -120,7 +94,7 @@ async function ensureProfileExists(profileId: string) {
 }
 
 export async function listUserGroups(profileId: string) {
-  assertUuid(profileId, 'x-user-id');
+  assertUuid(profileId, 'authenticated user id');
 
   const groups = await prisma.group.findMany({
     where: {
@@ -132,17 +106,19 @@ export async function listUserGroups(profileId: string) {
     orderBy: { updatedAt: 'desc' }
   });
 
-  return groups.map((group) => serializeGroup(group, profileId));
+  return groups.map((group) =>
+    serializeGroup(group, profileId)
+  );
 }
 
 export async function createUserGroup(
   profileId: string,
   input: GroupCreateInput
 ) {
-  assertUuid(profileId, 'x-user-id');
+  assertUuid(profileId, 'authenticated user id');
   await ensureProfileExists(profileId);
 
-  const name = normalizeText(input.name, 'name', 120);
+  const name = normalizeRequiredText(input.name, 'name', 120);
   const description = normalizeOptionalText(
     input.description,
     'description',
@@ -173,7 +149,7 @@ export async function joinUserGroup(
   profileId: string,
   input: GroupJoinInput
 ) {
-  assertUuid(profileId, 'x-user-id');
+  assertUuid(profileId, 'authenticated user id');
   await ensureProfileExists(profileId);
 
   const inviteCode = normalizeInviteCode(input.inviteCode);
@@ -186,8 +162,15 @@ export async function joinUserGroup(
     throw new ApiError(404, 'Invite code not found.');
   }
 
-  if (group.members.some((member) => member.profileId === profileId)) {
-    throw new ApiError(409, 'You already belong to this group.');
+  if (
+    group.members.some(
+      (member) => member.profileId === profileId
+    )
+  ) {
+    throw new ApiError(
+      409,
+      'You already belong to this group.'
+    );
   }
 
   const updatedGroup = await prisma.group.update({

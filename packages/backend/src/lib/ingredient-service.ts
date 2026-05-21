@@ -1,11 +1,15 @@
 import type { Ingredient } from '../generated/prisma';
 import { ApiError } from './api-error';
+import {
+  normalizeNullableText,
+  normalizeRequiredText
+} from './input-normalization';
 import { prisma } from './prisma';
 import { isPrismaError } from './prisma-utils';
 import { assertUuid } from './request-user';
 
 // Ingredient service currently models each user's pantry items.
-// The ownerId argument is always supplied by the route from x-user-id, never trusted from request JSON.
+// The ownerId argument is resolved from the Supabase session, never trusted from request JSON.
 type IngredientCreateInput = {
   canonicalIngredientId?: unknown;
   name?: unknown;
@@ -15,56 +19,6 @@ type IngredientCreateInput = {
 };
 
 type IngredientUpdateInput = Partial<IngredientCreateInput>;
-
-function normalizeRequiredText(
-  value: unknown,
-  fieldName: string,
-  maxLength: number
-) {
-  if (typeof value !== 'string' || value.trim().length === 0) {
-    throw new ApiError(400, `${fieldName} is required.`);
-  }
-
-  const trimmed = value.trim();
-
-  if (trimmed.length > maxLength) {
-    throw new ApiError(
-      400,
-      `${fieldName} must be ${maxLength} characters or fewer.`
-    );
-  }
-
-  return trimmed;
-}
-
-function normalizeNullableText(
-  value: unknown,
-  fieldName: string,
-  maxLength: number
-) {
-  if (value === undefined) {
-    return undefined;
-  }
-
-  if (value === null) {
-    return null;
-  }
-
-  if (typeof value !== 'string') {
-    throw new ApiError(400, `${fieldName} must be a string.`);
-  }
-
-  const trimmed = value.trim();
-
-  if (trimmed.length > maxLength) {
-    throw new ApiError(
-      400,
-      `${fieldName} must be ${maxLength} characters or fewer.`
-    );
-  }
-
-  return trimmed || null;
-}
 
 function normalizeCanonicalIngredientId(value: unknown) {
   const normalized = normalizeNullableText(

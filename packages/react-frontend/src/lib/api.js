@@ -1,13 +1,20 @@
-import { getSessionProfileId } from './session.js';
-
-const DEMO_USER_ID = 'user-admin-1';
+import {
+  ensureAuthSession,
+  refreshAuthSession
+} from './authApi.js';
 
 export async function readJson(response) {
+  if (response.status === 204) {
+    return null;
+  }
+
   const payload = await response.json();
 
   if (!response.ok) {
     throw new Error(
-      payload.error?.message ?? payload.error ?? 'Request failed.'
+      payload.error?.message ??
+        payload.error ??
+        'Request failed.'
     );
   }
 
@@ -15,13 +22,30 @@ export async function readJson(response) {
 }
 
 export async function apiFetch(path, init = {}) {
+  const session = await ensureAuthSession();
   const headers = new Headers(init.headers ?? {});
-  headers.set('x-user-id', getSessionProfileId() ?? DEMO_USER_ID);
+  const accessToken = session?.accessToken ?? null;
+
+  if (accessToken) {
+    headers.set('authorization', `Bearer ${accessToken}`);
+  }
 
   if (init.body && !headers.has('content-type')) {
     headers.set('content-type', 'application/json');
   }
 
-  const response = await fetch(path, { ...init, headers });
+  let response = await fetch(path, { ...init, headers });
+
+  if (response.status === 401 && session?.refreshToken) {
+    const refreshedSession = await refreshAuthSession(
+      session.refreshToken
+    );
+    headers.set(
+      'authorization',
+      `Bearer ${refreshedSession.accessToken}`
+    );
+    response = await fetch(path, { ...init, headers });
+  }
+
   return readJson(response);
 }
