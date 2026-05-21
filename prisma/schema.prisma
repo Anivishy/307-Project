@@ -1,0 +1,21 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../packages/backend/src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Profile {
+  id                        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email                     String   @unique @db.VarChar(320)
+  displayName               String?  @map("display_name") @db.VarChar(120)
+  allergies                 String[] @default([])
+  medicalRestrictions       String[] @default([]) @map("medical_restrictions")
+  neverIncludeIngredientIds String[] @default([]) @map("never_include_ingredient_ids")
+  createdAt                 DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                 DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("profiles")
+}
