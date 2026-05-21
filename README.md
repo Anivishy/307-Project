@@ -8,7 +8,7 @@ Kept backend scope:
 - Supabase auth/session services
 - profile persistence used by auth
 - backend `.env` / `.env.local` loading
-- a minimal Prisma `Profile` schema and auth baseline migration
+- the full Prisma schema and migrations from `main`
 
 The real `.env` and `.env.local` files stay ignored. Copy `.env.local.example` to `.env.local` locally and fill in the Supabase and database values.
 

@@ -1,6 +1,7 @@
 # Backend Auth API
 
 This package is the minimal Next.js API surface kept for the frontend/auth orphan branch.
+It uses the full Prisma schema from `main`, even though only the auth routes are kept here.
 
 Included routes:
 
