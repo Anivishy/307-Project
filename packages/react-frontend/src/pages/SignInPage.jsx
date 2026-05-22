@@ -1,9 +1,4 @@
-import {
-  KeyRound,
-  Mail,
-  ShieldCheck,
-  User
-} from 'lucide-react';
+import { KeyRound, Mail, User } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import creamyPan from '../../assets/creamy-pan.jpg';
@@ -156,7 +151,7 @@ export function SignInPage({ mode = 'signin' }) {
                 name="email"
                 value={form.email}
                 onChange={updateField}
-                placeholder="kartik@example.com"
+                placeholder="you@example.com"
               />
             </label>
 
@@ -168,7 +163,7 @@ export function SignInPage({ mode = 'signin' }) {
                   name="name"
                   value={form.name}
                   onChange={updateField}
-                  placeholder="Kartik"
+                  placeholder="Your name"
                 />
               </label>
             )}
@@ -185,13 +180,6 @@ export function SignInPage({ mode = 'signin' }) {
               />
             </label>
 
-            <div className="auth-options">
-              <span>
-                <ShieldCheck size={16} /> Session persists after
-                refresh
-              </span>
-            </div>
-
             <p
               className={`auth-status auth-status--${formStatus.tone}`}>
               {formStatus.message}
@@ -207,16 +195,16 @@ export function SignInPage({ mode = 'signin' }) {
                   ? 'Create account'
                   : 'Sign in'}
             </button>
-          </form>
 
-          <p className="auth-switch">
-            {isSignUp
-              ? 'Already have an account?'
-              : 'New here?'}{' '}
-            <Link to={isSignUp ? '/signin' : '/signup'}>
-              {isSignUp ? 'Sign in' : 'Create account'}
-            </Link>
-          </p>
+            <p className="auth-switch">
+              {isSignUp
+                ? 'Already have an account?'
+                : 'New here?'}{' '}
+              <Link to={isSignUp ? '/signin' : '/signup'}>
+                {isSignUp ? 'Sign in' : 'Create account'}
+              </Link>
+            </p>
+          </form>
         </section>
       </main>
     </div>

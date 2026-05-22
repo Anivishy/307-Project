@@ -25,6 +25,7 @@ import {
   getPantryItems,
   updatePantryItem
 } from '../lib/pantryApi.js';
+import { getGroups } from '../lib/groupApi.js';
 import { getSavedSession } from '../lib/session.js';
 
 const emptyDraft = {
@@ -55,7 +56,12 @@ function mapApiItem(item) {
 }
 
 export function ProfilePage() {
+  const session = getSavedSession();
+  const displayName = session?.displayName ?? session?.email ?? 'Profile';
+  const avatarInitial = (session?.displayName?.[0] ?? session?.email?.[0] ?? '?').toUpperCase();
+
   const [items, setItems] = useState([]);
+  const [groupCount, setGroupCount] = useState(null);
   const [ingredientDatabase, setIngredientDatabase] =
     useState([]);
   const [draft, setDraft] = useState(emptyDraft);
@@ -170,8 +176,23 @@ export function ProfilePage() {
       }
     }
 
+    async function loadGroupCount() {
+      if (!getSavedSession()?.profileId) {
+        return;
+      }
+      try {
+        const payload = await getGroups();
+        if (!isCancelled) {
+          setGroupCount(payload.groups.length);
+        }
+      } catch {
+        // non-critical, leave count as null
+      }
+    }
+
     void loadConstraints();
     void loadPantry();
+    void loadGroupCount();
 
     return () => {
       isCancelled = true;
@@ -351,13 +372,13 @@ export function ProfilePage() {
       />
 
       <section className="profile-card surface-card">
-        <div className="profile-avatar">K</div>
+        <div className="profile-avatar">{avatarInitial}</div>
         <div>
-          <h2>Kartik</h2>
-          <p>Customer / Tester</p>
+          <h2>{displayName}</h2>
+          <p>{session?.email ?? ''}</p>
           <div className="profile-pills">
             <span>{items.length} items</span>
-            <span>3 groups</span>
+            <span>{groupCount !== null ? `${groupCount} group${groupCount !== 1 ? 's' : ''}` : '—'}</span>
           </div>
         </div>
       </section>

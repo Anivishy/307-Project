@@ -6,10 +6,14 @@ import { GlassIconButton } from "../components/GlassIconButton.jsx";
 import { RecipeCard } from "../components/RecipeCard.jsx";
 import { SearchFilter } from "../components/SearchFilter.jsx";
 import { recipes } from "../data/recipes.js";
+import { getSavedSession } from "../lib/session.js";
 
 export function RecipeListPage() {
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("All");
+  const session = getSavedSession();
+  const displayName = session?.displayName ?? session?.email ?? "there";
+  const avatarInitial = (session?.displayName?.[0] ?? session?.email?.[0] ?? "?").toUpperCase();
 
   const filteredRecipes = useMemo(() => {
     return recipes.filter((recipe) => {
@@ -22,8 +26,8 @@ export function RecipeListPage() {
   return (
     <section className="screen recipe-list-screen">
       <div className="dashboard-greeting">
-        <div className="avatar-chip">K</div>
-        <span>Hi Kartik</span>
+        <div className="avatar-chip">{avatarInitial}</div>
+        <span>Hi {displayName}</span>
         <GlassIconButton icon={ChefHat} label="Cooking status" />
       </div>
 

@@ -38,7 +38,7 @@ export function ApprovalsPage() {
       <section className="approval-note surface-card">
         <h2>Approval rules</h2>
         <p>No ingredient is deducted until the owner approves the request.</p>
-        <Link to="/groups/dorm-dinner-crew">Back to Dorm Dinner Crew</Link>
+        <Link to="/groups">Back to Groups</Link>
       </section>
     </section>
   );
