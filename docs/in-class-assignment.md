@@ -38,11 +38,11 @@ This branch is for the in-class assignment only. It should be pushed to GitHub a
 
 8. Who will take care of the automated tests?
 
-   Scott.
+   Kartik.
 
 9. Who will create the Microsoft Azure account and set up Azure Web App?
 
-   Sean.
+   Kartik.
 
 10. What days will you be in the lab this week and next week?
 
