@@ -1,0 +1,64 @@
+# In-class assignment CI workflow.
+name: CI Testing
+
+on:
+  push:
+    branches:
+      - main
+      - in-class-assignment
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            packages/backend/package-lock.json
+            packages/react-frontend/package-lock.json
+
+      - name: Install root dependencies
+        run: npm ci
+
+      - name: Install backend dependencies
+        run: npm ci
+        working-directory: packages/backend
+
+      - name: Generate Prisma client
+        run: npm run prisma:generate
+        working-directory: packages/backend
+
+      - name: Type-check backend
+        run: npx tsc --noEmit
+        working-directory: packages/backend
+
+      - name: Test backend
+        run: npm test
+        working-directory: packages/backend
+
+      - name: Install frontend dependencies
+        run: npm ci
+        working-directory: packages/react-frontend
+
+      - name: Lint frontend
+        run: npm run lint
+        working-directory: packages/react-frontend
+
+      - name: Test frontend
+        run: npm test
+        working-directory: packages/react-frontend
+
+      - name: Build frontend
+        run: npm run build
+        working-directory: packages/react-frontend
