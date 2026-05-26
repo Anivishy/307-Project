@@ -11,6 +11,7 @@ import { ProfilePage } from "./pages/ProfilePage.jsx";
 import { GroupsPage } from "./pages/GroupsPage.jsx";
 import { GroupDetailPage } from "./pages/GroupDetailPage.jsx";
 import { ApprovalsPage } from "./pages/ApprovalsPage.jsx";
+import { JoinGroupPage } from "./pages/JoinGroupPage.jsx";
 
 export default function App() {
   return (
@@ -19,6 +20,7 @@ export default function App() {
       <Route path="/signin" element={<SignInPage mode="signin" />} />
       <Route path="/signup" element={<SignInPage mode="signup" />} />
       <Route path="/auth/callback" element={<AuthCallbackPage />} />
+      <Route path="/join/:inviteCode" element={<JoinGroupPage />} />
       <Route element={<AppLayout />}>
         <Route path="/recipes" element={<RecipeListPage />} />
         <Route path="/recipes/:recipeId" element={<RecipeDetailPage />} />

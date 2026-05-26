@@ -1,11 +1,9 @@
 import { createElement } from "react";
-import { Bookmark, Home, UserRound, UsersRound } from "lucide-react";
+import { UserRound, UsersRound } from "lucide-react";
 import { NavLink } from "react-router-dom";
 
 const navItems = [
-  { label: "Recipes", description: "Discover meal ideas", to: "/recipes", icon: Home },
   { label: "Groups", description: "Manage shared meals", to: "/groups", icon: UsersRound },
-  { label: "Saved", description: "Keep favorites handy", to: "/favorites", icon: Bookmark },
   { label: "Profile", description: "Update pantry items", to: "/profile", icon: UserRound },
 ];
 
