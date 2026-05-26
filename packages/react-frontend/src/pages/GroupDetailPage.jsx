@@ -1,8 +1,9 @@
 import {
   Check,
   Copy,
-  Link as LinkIcon,
   Package,
+  Plus,
+  SlidersHorizontal,
   UtensilsCrossed,
   Users,
   X
@@ -12,7 +13,9 @@ import { Link, useParams } from 'react-router-dom';
 import { StatusMessage } from '../components/StatusMessage.jsx';
 import {
   getGroup,
-  getGroupMembers
+  getGroupMembers,
+  getGroupSettings,
+  updateGroupSettings
 } from '../lib/groupApi.js';
 
 function buildInviteLink(inviteCode) {
@@ -22,6 +25,10 @@ function buildInviteLink(inviteCode) {
 function initials(member) {
   const name = member.displayName || member.email;
   return name.slice(0, 2).toUpperCase();
+}
+
+function isAdminRole(role) {
+  return ['admin', 'owner'].includes(String(role ?? '').toLowerCase());
 }
 
 function CopyButton({ text, label }) {
@@ -52,6 +59,13 @@ export function GroupDetailPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState('');
   const [activeTab, setActiveTab] = useState('members');
+  const [settings, setSettings] = useState(null);
+  const [isSettingsLoading, setIsSettingsLoading] = useState(false);
+  const [isSettingsSaving, setIsSettingsSaving] = useState(false);
+  const [settingsError, setSettingsError] = useState('');
+  const [settingsNotice, setSettingsNotice] = useState('');
+  const [customStaplesDraft, setCustomStaplesDraft] = useState([]);
+  const [stapleQuery, setStapleQuery] = useState('');
 
   useEffect(() => {
     if (!groupId) return undefined;
@@ -82,6 +96,147 @@ export function GroupDetailPage() {
     return () => { isCancelled = true; };
   }, [groupId]);
 
+  useEffect(() => {
+    setSettings(null);
+    setCustomStaplesDraft([]);
+    setStapleQuery('');
+    setSettingsError('');
+    setSettingsNotice('');
+  }, [groupId]);
+
+  const groupName = groupInfo?.name ?? '…';
+  const isAdmin = isAdminRole(groupInfo?.role);
+
+  useEffect(() => {
+    if (!groupId || activeTab !== 'settings' || !isAdmin || settings) {
+      return undefined;
+    }
+
+    let isCancelled = false;
+
+    async function loadGroupSettings() {
+      setIsSettingsLoading(true);
+      setSettingsError('');
+      setSettingsNotice('');
+
+      try {
+        const settingsPayload = await getGroupSettings(groupId);
+        if (isCancelled) return;
+        setSettings(settingsPayload);
+        setCustomStaplesDraft(settingsPayload.customStaples ?? []);
+      } catch (error) {
+        if (!isCancelled) {
+          setSettingsError(
+            error instanceof Error
+              ? error.message
+              : 'Unable to load group settings.'
+          );
+        }
+      } finally {
+        if (!isCancelled) setIsSettingsLoading(false);
+      }
+    }
+
+    void loadGroupSettings();
+    return () => { isCancelled = true; };
+  }, [activeTab, groupId, isAdmin, settings]);
+
+  async function saveSettingsPatch(updates, successMessage) {
+    if (!groupId) return;
+
+    setIsSettingsSaving(true);
+    setSettingsError('');
+    setSettingsNotice('');
+
+    try {
+      const nextSettings = await updateGroupSettings(groupId, updates);
+      setSettings(nextSettings);
+      setCustomStaplesDraft(nextSettings.customStaples ?? []);
+      setSettingsNotice(successMessage);
+    } catch (error) {
+      setSettingsError(
+        error instanceof Error
+          ? error.message
+          : 'Unable to save group settings.'
+      );
+    } finally {
+      setIsSettingsSaving(false);
+    }
+  }
+
+  function handleAllowMissingToggle(event) {
+    void saveSettingsPatch(
+      { allowMissingIngredients: event.target.checked },
+      'Missing ingredient setting saved.'
+    );
+  }
+
+  function handleStaplesToggle(event) {
+    void saveSettingsPatch(
+      { staplesEnabled: event.target.checked },
+      'Staples setting saved.'
+    );
+  }
+
+  function handleAddCustomStaple() {
+    if (!settings) return;
+
+    const normalizedQuery = stapleQuery.trim().toLowerCase();
+    if (!normalizedQuery) return;
+
+    const match = settings.ingredientCatalog.find((item) => {
+      const ingredientName = item.name.toLowerCase();
+      return (
+        item.id === normalizedQuery ||
+        ingredientName === normalizedQuery ||
+        ingredientName.includes(normalizedQuery)
+      );
+    });
+
+    if (!match) {
+      setSettingsNotice('');
+      setSettingsError(
+        'Pick a staple from the ingredient suggestions before adding it.'
+      );
+      return;
+    }
+
+    const isAlreadyListed =
+      settings.defaultStaplesPreset.some((item) => item.id === match.id) ||
+      customStaplesDraft.some((item) => item.id === match.id);
+
+    if (isAlreadyListed) {
+      setSettingsNotice('');
+      setSettingsError('That staple is already listed for the group.');
+      return;
+    }
+
+    setSettingsError('');
+    setSettingsNotice('');
+    setCustomStaplesDraft((current) => [...current, match]);
+    setStapleQuery('');
+  }
+
+  function handleRemoveCustomStaple(stapleId) {
+    setSettingsError('');
+    setSettingsNotice('');
+    setCustomStaplesDraft((current) =>
+      current.filter((item) => item.id !== stapleId)
+    );
+  }
+
+  function handleSaveStaples() {
+    if (!settings) return;
+
+    void saveSettingsPatch(
+      {
+        staplesEnabled: Boolean(settings.staplesEnabled),
+        customStaples: customStaplesDraft.map((item) => item.id)
+      },
+      'Staples list saved.'
+    );
+  }
+
   if (!groupId) {
     return (
       <section className="screen">
@@ -91,8 +246,8 @@ export function GroupDetailPage() {
     );
   }
 
-  const groupName = groupInfo?.name ?? '…';
-  const isAdmin = groupInfo?.role === 'Admin';
+  const canEditSettings =
+    isAdmin && (!settings?.viewerRole || isAdminRole(settings.viewerRole));
 
   // Build combined pantry: flat list of all ingredients across members
   const combinedPantry = members
@@ -156,6 +311,15 @@ export function GroupDetailPage() {
           >
             <UtensilsCrossed size={16} /> Recipes
           </button>
+          {isAdmin && (
+            <button
+              className={`gd-tab ${activeTab === 'settings' ? 'gd-tab--active' : ''}`}
+              type="button"
+              onClick={() => setActiveTab('settings')}
+            >
+              <SlidersHorizontal size={16} /> Settings
+            </button>
+          )}
         </div>
 
         {/* MEMBERS TAB */}
@@ -240,6 +404,196 @@ export function GroupDetailPage() {
               <UtensilsCrossed size={36} style={{ opacity: 0.3 }} />
               <p>Recipes coming soon.</p>
             </div>
+          </section>
+        )}
+
+        {/* SETTINGS TAB */}
+        {activeTab === 'settings' && isAdmin && (
+          <section className="gd-tab-content">
+            {isSettingsLoading ? (
+              <StatusMessage
+                type="loading"
+                title="Loading settings"
+                message="Fetching admin controls for this group."
+              />
+            ) : settings ? (
+              <>
+                <section className="settings-card surface-card">
+                  <div className="section-heading">
+                    <h2>Group Settings</h2>
+                    <span className="settings-badge">
+                      {canEditSettings ? 'Admin controls' : 'Member view'}
+                    </span>
+                  </div>
+
+                  <div className="toggle-row">
+                    <div>
+                      <h3>Allow Missing Ingredients</h3>
+                      <p>
+                        Enable bundles that include clearly disclosed shopping gaps.
+                        Disabled means missing ingredients block a candidate before it appears.
+                      </p>
+                    </div>
+
+                    <label
+                      className={`toggle-switch ${
+                        settings.allowMissingIngredients ? 'is-active' : ''
+                      } ${isSettingsSaving ? 'is-busy' : ''}`}>
+                      <input
+                        type="checkbox"
+                        aria-label="Allow Missing Ingredients"
+                        checked={Boolean(settings.allowMissingIngredients)}
+                        disabled={!canEditSettings || isSettingsSaving}
+                        onChange={handleAllowMissingToggle}
+                      />
+                      <span className="toggle-switch__track">
+                        <span className="toggle-switch__thumb" />
+                      </span>
+                    </label>
+                  </div>
+
+                  <p className="settings-note">
+                    {settings.allowMissingIngredients
+                      ? 'Candidates can appear with shopping disclosures.'
+                      : 'Only pantry-feasible candidates are shown right now.'}
+                  </p>
+                </section>
+
+                <section className="settings-card surface-card">
+                  <div className="section-heading">
+                    <h2>Pantry Staples</h2>
+                    <span className="settings-badge">
+                      {settings.staplesEnabled ? 'Enabled' : 'Disabled'}
+                    </span>
+                  </div>
+
+                  <div className="toggle-row">
+                    <div>
+                      <h3>Use Group Staples</h3>
+                      <p>
+                        When enabled, approved basics are treated as effectively
+                        unlimited during group recipe generation.
+                      </p>
+                    </div>
+
+                    <label
+                      className={`toggle-switch ${
+                        settings.staplesEnabled ? 'is-active' : ''
+                      } ${isSettingsSaving ? 'is-busy' : ''}`}>
+                      <input
+                        type="checkbox"
+                        aria-label="Use Group Staples"
+                        checked={Boolean(settings.staplesEnabled)}
+                        disabled={!canEditSettings || isSettingsSaving}
+                        onChange={handleStaplesToggle}
+                      />
+                      <span className="toggle-switch__track">
+                        <span className="toggle-switch__thumb" />
+                      </span>
+                    </label>
+                  </div>
+
+                  <div className="staples-panel">
+                    <div>
+                      <h3>Default Staples Preset</h3>
+                      <div
+                        className="staple-list"
+                        aria-label="Default staples preset">
+                        {settings.defaultStaplesPreset.map((item) => (
+                          <span
+                            className="staple-chip staple-chip--default"
+                            key={item.id}>
+                            {item.name}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div>
+                      <h3>Custom Staples</h3>
+                      <p className="settings-note">
+                        Add extra ingredients the household agrees to treat like staples.
+                      </p>
+                      <div className="staple-editor">
+                        <input
+                          className="staple-search"
+                          list="staple-ingredient-suggestions"
+                          placeholder="Search ingredient suggestions"
+                          value={stapleQuery}
+                          disabled={!canEditSettings || isSettingsSaving}
+                          onChange={(event) => setStapleQuery(event.target.value)}
+                        />
+                        <datalist id="staple-ingredient-suggestions">
+                          {settings.ingredientCatalog.map((item) => (
+                            <option key={item.id} value={item.name} />
+                          ))}
+                        </datalist>
+                        <button
+                          className="button button--dark"
+                          type="button"
+                          disabled={!canEditSettings || isSettingsSaving}
+                          onClick={handleAddCustomStaple}>
+                          <Plus size={18} /> Add Staple
+                        </button>
+                      </div>
+
+                      <div
+                        className="staple-list"
+                        aria-label="Custom staples list">
+                        {customStaplesDraft.length === 0 ? (
+                          <span className="staple-chip staple-chip--empty">
+                            No custom staples yet
+                          </span>
+                        ) : (
+                          customStaplesDraft.map((item) => (
+                            <button
+                              className="staple-chip staple-chip--removable"
+                              key={item.id}
+                              type="button"
+                              disabled={!canEditSettings || isSettingsSaving}
+                              onClick={() => handleRemoveCustomStaple(item.id)}
+                              aria-label={`Remove ${item.name}`}>
+                              {item.name}
+                              <X size={14} aria-hidden="true" />
+                            </button>
+                          ))
+                        )}
+                      </div>
+
+                      <div className="settings-actions">
+                        <button
+                          className="button"
+                          type="button"
+                          disabled={!canEditSettings || isSettingsSaving}
+                          onClick={handleSaveStaples}>
+                          <Check size={18} /> Save Staples
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </section>
+
+                {settingsNotice && (
+                  <p className="settings-status settings-status--success">
+                    {settingsNotice}
+                  </p>
+                )}
+              </>
+            ) : (
+              <StatusMessage
+                type="error"
+                title="Settings unavailable"
+                message={settingsError || 'Unable to load group settings.'}
+              />
+            )}
+
+            {settings && settingsError && (
+              <StatusMessage
+                type="error"
+                title="Settings unavailable"
+                message={settingsError}
+              />
+            )}
           </section>
         )}
     </section>

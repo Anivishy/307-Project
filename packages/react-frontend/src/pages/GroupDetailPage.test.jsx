@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -28,27 +28,29 @@ const groupSettingsPayload = {
   viewerRole: "admin",
 };
 
-const bundleCandidatePayload = {
-  groupId: "dorm-dinner-crew",
-  groupName: "Dorm Dinner Crew",
-  allowMissingIngredients: true,
-  viewerRole: "admin",
-  filteredOutCandidateCount: 0,
-  candidates: [
+const groupInfoPayload = {
+  id: "dorm-dinner-crew",
+  name: "Dorm Dinner Crew",
+  description: "Shared pantry group.",
+  inviteCode: "DORM-1234",
+  role: "Admin",
+  members: 1,
+  pantrySnapshotVersion: 1,
+  activeBundleVersion: 1,
+  selectedBundleId: null,
+  createdAt: "2026-05-11T07:00:00.000Z",
+  updatedAt: "2026-05-11T07:00:00.000Z",
+};
+
+const groupMembersPayload = {
+  members: [
     {
-      id: "bundle-saffron-pasta-night",
-      title: "Saffron Pasta Night",
-      courses: [{ type: "main", title: "Saffron Tomato Pasta" }],
-      rationale: "Missing items are disclosed so the group can decide whether shopping is worth it.",
-      assumedStaples: [{ ingredientId: "salt", name: "Salt" }],
-      missingIngredients: [
-        {
-          ingredientId: "saffron-threads",
-          name: "Saffron threads",
-          quantityNeeded: 1,
-          unit: "tbsp",
-        },
-      ],
+      profileId: "profile-1",
+      displayName: "Vinayak",
+      email: "vinayak@example.com",
+      role: "Admin",
+      joinedAt: "2026-05-11T07:00:00.000Z",
+      ingredients: [],
     },
   ],
 };
@@ -67,9 +69,28 @@ describe("GroupDetailPage", () => {
   let fetchMock;
 
   beforeEach(() => {
-    fetchMock = vi.fn(async (input) => {
+    fetchMock = vi.fn(async (input, options) => {
       const url = String(input);
-      const payload = url.endsWith("/settings") ? groupSettingsPayload : bundleCandidatePayload;
+      let payload = groupInfoPayload;
+
+      if (url.endsWith("/members")) {
+        payload = groupMembersPayload;
+      }
+
+      if (url.endsWith("/settings")) {
+        if (options?.method === "PATCH") {
+          const body = JSON.parse(options.body);
+          payload = {
+            ...groupSettingsPayload,
+            ...body,
+            customStaples: (body.customStaples ?? groupSettingsPayload.customStaples.map((item) => item.id))
+              .map((id) => groupSettingsPayload.ingredientCatalog.find((item) => item.id === id))
+              .filter(Boolean),
+          };
+        } else {
+          payload = groupSettingsPayload;
+        }
+      }
 
       return new Response(JSON.stringify(payload), {
         status: 200,
@@ -84,8 +105,11 @@ describe("GroupDetailPage", () => {
     vi.unstubAllGlobals();
   });
 
-  it("reflects the current allowMissingIngredients setting on load", async () => {
+  it("shows the admin settings tab and reflects the current missing-ingredient setting", async () => {
+    const user = userEvent.setup();
     renderGroupDetailPage();
+
+    await user.click(await screen.findByRole("button", { name: /settings/i }));
 
     const toggle = await screen.findByRole("checkbox", {
       name: "Allow Missing Ingredients",
@@ -94,18 +118,34 @@ describe("GroupDetailPage", () => {
     expect(toggle).toBeChecked();
   });
 
-  it("shows missing ingredient disclosures on bundle cards when enabled", async () => {
+  it("saves the missing-ingredient setting from the admin tab", async () => {
+    const user = userEvent.setup();
     renderGroupDetailPage();
 
-    await screen.findByText("Saffron Pasta Night");
+    await user.click(await screen.findByRole("button", { name: /settings/i }));
+    await user.click(
+      await screen.findByRole("checkbox", {
+        name: "Allow Missing Ingredients",
+      }),
+    );
 
-    expect(screen.getByText("Missing Items")).toBeInTheDocument();
-    expect(screen.getByText("1 tbsp Saffron threads")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(
+        fetchMock.mock.calls.some(
+          ([url, options]) =>
+            String(url).endsWith("/settings") &&
+            options?.method === "PATCH" &&
+            JSON.parse(options.body).allowMissingIngredients === false,
+        ),
+      ).toBe(true);
+    });
   });
 
   it("shows default staples and saves a custom staple update", async () => {
     const user = userEvent.setup();
     renderGroupDetailPage();
+
+    await user.click(await screen.findByRole("button", { name: /settings/i }));
 
     await screen.findByText("Olive oil");
     expect(screen.getByText("Basil leaves")).toBeInTheDocument();

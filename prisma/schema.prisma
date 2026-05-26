@@ -67,16 +67,19 @@ model Ingredient {
 }
 
 model Group {
-  id                    String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  ownerId               String   @map("owner_id") @db.Uuid
-  name                  String   @db.VarChar(120)
-  description           String?  @db.Text
-  inviteCode            String?  @unique @map("invite_code") @db.VarChar(32)
-  pantrySnapshotVersion Int      @default(1) @map("pantry_snapshot_version")
-  activeBundleVersion   Int      @default(1) @map("active_bundle_version")
-  selectedBundleId      String?  @map("selected_bundle_id") @db.VarChar(120)
-  createdAt             DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt             DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id                      String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  ownerId                 String   @map("owner_id") @db.Uuid
+  name                    String   @db.VarChar(120)
+  description             String?  @db.Text
+  inviteCode              String?  @unique @map("invite_code") @db.VarChar(32)
+  pantrySnapshotVersion   Int      @default(1) @map("pantry_snapshot_version")
+  activeBundleVersion     Int      @default(1) @map("active_bundle_version")
+  selectedBundleId        String?  @map("selected_bundle_id") @db.VarChar(120)
+  allowMissingIngredients Boolean  @default(false) @map("allow_missing_ingredients")
+  staplesEnabled          Boolean  @default(false) @map("staples_enabled")
+  customStaples           String[] @default([]) @map("custom_staples")
+  createdAt               DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt               DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   owner        Profile       @relation("GroupOwner", fields: [ownerId], references: [id], onDelete: Restrict)
   members      GroupMember[]
