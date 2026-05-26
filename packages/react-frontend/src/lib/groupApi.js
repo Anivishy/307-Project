@@ -1,4 +1,8 @@
-import { apiFetch } from './api.js';
+import { apiFetch, readJson } from './api.js';
+
+export function getGroupPreview(inviteCode) {
+  return fetch(`/api/groups/invite/${encodeURIComponent(inviteCode)}`).then(readJson);
+}
 
 export function getGroups() {
   return apiFetch('/api/groups');
@@ -16,6 +20,14 @@ export function joinGroup(inviteCode) {
     method: 'POST',
     body: JSON.stringify({ inviteCode })
   });
+}
+
+export function getGroup(groupId) {
+  return apiFetch(`/api/groups/${groupId}`);
+}
+
+export function getGroupMembers(groupId) {
+  return apiFetch(`/api/groups/${groupId}/members`);
 }
 
 export function getGroupSettings(groupId) {

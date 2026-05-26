@@ -2412,3 +2412,307 @@ body {
     width: 100%;
   }
 }
+
+/* Group detail header */
+.gd-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.gd-header__title {
+  margin: 4px 0 0;
+  font-size: 1.7rem;
+  line-height: 1.1;
+  color: var(--color-text);
+}
+
+.gd-close-button {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: rgba(220, 60, 40, 0.15);
+  color: #e05540;
+  border: 1px solid rgba(220, 60, 40, 0.3);
+  text-decoration: none;
+  transition: background 0.15s;
+  margin-top: 4px;
+}
+
+.gd-close-button:hover {
+  background: rgba(220, 60, 40, 0.28);
+}
+
+.gd-empty-tab {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 48px 0;
+  color: var(--color-muted);
+  font-size: 0.9rem;
+}
+
+/* Group detail tabs */
+.gd-tab-row {
+  display: flex;
+  gap: 6px;
+  margin: 18px 0 4px;
+  border-bottom: 1px solid var(--color-line);
+  padding-bottom: 0;
+}
+
+.gd-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 16px;
+  border: none;
+  background: none;
+  color: var(--color-muted);
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  border-radius: 0;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.gd-tab:hover {
+  color: var(--color-text);
+}
+
+.gd-tab--active {
+  color: var(--color-orange);
+  border-bottom-color: var(--color-orange);
+}
+
+.gd-tab-content {
+  padding: 18px 0;
+  display: grid;
+  gap: 16px;
+}
+
+/* Member cards */
+.member-grid {
+  display: grid;
+  gap: 14px;
+}
+
+.member-card {
+  display: grid;
+  grid-template-columns: 48px 1fr;
+  grid-template-rows: auto auto;
+  grid-template-areas:
+    "avatar info"
+    "pantry pantry";
+  gap: 12px;
+  padding: 16px;
+  border-radius: 20px;
+}
+
+.member-card__avatar {
+  grid-area: avatar;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: var(--color-orange);
+  color: var(--color-bg-deep);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1rem;
+  font-weight: 800;
+  flex-shrink: 0;
+}
+
+.member-card__info {
+  grid-area: info;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.member-card__info strong {
+  font-size: 1rem;
+  color: var(--color-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.member-card__info small {
+  font-size: 0.8rem;
+  color: var(--color-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.member-role-badge {
+  display: inline-block;
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  width: fit-content;
+}
+
+.member-role-badge--admin {
+  background: rgba(255, 100, 60, 0.18);
+  color: var(--color-orange);
+}
+
+.member-role-badge--member {
+  background: var(--color-surface-strong);
+  color: var(--color-muted);
+}
+
+.member-card__pantry {
+  grid-area: pantry;
+  border-top: 1px solid var(--color-line);
+  padding-top: 10px;
+}
+
+.member-card__pantry-heading {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--color-muted);
+  margin-bottom: 8px;
+}
+
+.member-pantry-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.member-pantry-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 0.84rem;
+  gap: 8px;
+}
+
+.ing-name {
+  color: var(--color-text);
+}
+
+.ing-qty {
+  color: var(--color-muted);
+  font-size: 0.78rem;
+  white-space: nowrap;
+}
+
+.ing-more {
+  color: var(--color-muted);
+  font-size: 0.78rem;
+  font-style: italic;
+}
+
+/* Combined pantry */
+.combined-pantry-list {
+  display: grid;
+  gap: 4px;
+}
+
+.combined-pantry-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 9px 14px;
+  border-radius: 14px;
+  background: var(--color-surface);
+  gap: 12px;
+}
+
+.combined-pantry-row__name {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.combined-pantry-row__name > span:first-child {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.combined-pantry-row__owner {
+  font-size: 0.75rem;
+  color: var(--color-muted);
+}
+
+.combined-pantry-row__qty {
+  font-size: 0.82rem;
+  color: var(--color-muted);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* Invite code UI */
+.invite-code-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+
+.invite-code {
+  font-family: monospace;
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  padding: 8px 14px;
+  background: var(--color-surface-strong);
+  border: 1px solid var(--color-line);
+  border-radius: 12px;
+  color: var(--color-text);
+  flex-shrink: 0;
+}
+
+.invite-code--small {
+  font-size: 0.8rem;
+  padding: 5px 10px;
+}
+
+.group-invite-card {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 22px;
+  padding: 18px;
+  border: 1px solid rgba(156, 227, 106, 0.34);
+}
+
+.group-card-wrapper {
+  display: grid;
+  gap: 8px;
+}
+
+.group-card-invite {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 4px;
+  flex-wrap: wrap;
+}
+
+.group-status--error {
+  color: var(--color-orange);
+  border-color: rgba(255, 100, 60, 0.3);
+}

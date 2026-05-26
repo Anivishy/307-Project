@@ -145,6 +145,108 @@ export async function createUserGroup(
   return serializeGroup(group, profileId);
 }
 
+export async function getGroupMembers(
+  groupId: string,
+  profileId: string
+) {
+  assertUuid(groupId, 'groupId');
+  assertUuid(profileId, 'authenticated user id');
+
+  const group = await prisma.group.findUnique({
+    where: { id: groupId },
+    include: {
+      members: {
+        include: {
+          profile: {
+            include: {
+              ingredients: {
+                orderBy: { name: 'asc' }
+              }
+            }
+          }
+        },
+        orderBy: { joinedAt: 'asc' }
+      }
+    }
+  });
+
+  if (!group) {
+    throw new ApiError(404, 'Group not found.');
+  }
+
+  const isMember = group.members.some(
+    (m) => m.profileId === profileId
+  );
+
+  if (!isMember) {
+    throw new ApiError(403, 'You are not a member of this group.');
+  }
+
+  return group.members.map((m) => ({
+    profileId: m.profileId,
+    displayName: m.profile.displayName,
+    email: m.profile.email,
+    role: roleLabel(m.role),
+    joinedAt: m.joinedAt.toISOString(),
+    ingredients: m.profile.ingredients.map((ing) => ({
+      id: ing.id,
+      name: ing.name,
+      quantity: ing.quantity === null ? null : Number(ing.quantity),
+      unit: ing.unit,
+      notes: ing.notes
+    }))
+  }));
+}
+
+export async function getGroupById(
+  groupId: string,
+  profileId: string
+) {
+  assertUuid(groupId, 'groupId');
+  assertUuid(profileId, 'authenticated user id');
+
+  const group = await prisma.group.findUnique({
+    where: { id: groupId },
+    include: { members: true }
+  });
+
+  if (!group) {
+    throw new ApiError(404, 'Group not found.');
+  }
+
+  const isMember = group.members.some(
+    (member) => member.profileId === profileId
+  );
+
+  if (!isMember) {
+    throw new ApiError(403, 'You are not a member of this group.');
+  }
+
+  return serializeGroup(group, profileId);
+}
+
+export async function getGroupPreviewByInviteCode(
+  inviteCode: unknown
+) {
+  const code = normalizeInviteCode(inviteCode);
+  const group = await prisma.group.findUnique({
+    where: { inviteCode: code },
+    include: { members: true }
+  });
+
+  if (!group) {
+    throw new ApiError(404, 'Invite code not found.');
+  }
+
+  return {
+    id: group.id,
+    name: group.name,
+    description: group.description,
+    inviteCode: group.inviteCode,
+    members: group.members.length
+  };
+}
+
 export async function joinUserGroup(
   profileId: string,
   input: GroupJoinInput
