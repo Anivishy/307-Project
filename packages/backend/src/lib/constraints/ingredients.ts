@@ -142,11 +142,39 @@ const ingredients: Ingredient[] = [
     tags: ['sodium']
   },
   {
+    id: 'pepper',
+    name: 'Pepper',
+    category: 'seasoning',
+    commonUnits: ['tsp', 'tbsp', 'g'],
+    tags: ['black pepper', 'spice']
+  },
+  {
     id: 'olive-oil',
     name: 'Olive Oil',
     category: 'oil',
     commonUnits: ['tsp', 'tbsp', 'ml'],
     tags: ['fat']
+  },
+  {
+    id: 'butter',
+    name: 'Butter',
+    category: 'dairy',
+    commonUnits: ['tbsp', 'g', 'oz'],
+    tags: ['fat', 'dairy']
+  },
+  {
+    id: 'basil-leaves',
+    name: 'Basil Leaves',
+    category: 'produce',
+    commonUnits: ['leaf', 'leaves', 'g'],
+    tags: ['basil', 'herb']
+  },
+  {
+    id: 'thyme',
+    name: 'Fresh Thyme',
+    category: 'produce',
+    commonUnits: ['sprig', 'tsp', 'g'],
+    tags: ['thyme', 'herb']
   }
 ];
 
