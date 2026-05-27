@@ -13,6 +13,12 @@ import {
 } from './demo-store';
 import { buildValidatedCandidateSet } from './bundle-validator';
 import { listConstraintsForUsers } from './constraints/store';
+import {
+  notifyBundleSelection,
+  notifyOverrideDisclosures,
+  notifyPantryUpdates,
+  type PreferenceOverrideDisclosure
+} from './email-notifications';
 
 // The group service owns US7/US8 demo behavior: settings reads/writes plus
 // candidate filtering that depends on missing-ingredient and staples settings.
@@ -42,6 +48,7 @@ type BundleSelectionInput = {
   pantrySnapshotVersion?: unknown;
   activeBundleVersion?: unknown;
   force?: unknown;
+  preferenceOverrides?: unknown;
 };
 
 function buildSettingsPayload(
@@ -108,13 +115,19 @@ function getViewerContext(
   };
 }
 
-function normalizeVersionToken(value: unknown, fieldName: string) {
+function normalizeVersionToken(
+  value: unknown,
+  fieldName: string
+) {
   if (
     typeof value !== 'number' ||
     !Number.isInteger(value) ||
     value < 0
   ) {
-    throw new ApiError(400, `${fieldName} must be a non-negative integer.`);
+    throw new ApiError(
+      400,
+      `${fieldName} must be a non-negative integer.`
+    );
   }
 
   return value;
@@ -128,6 +141,41 @@ function normalizeBundleId(value: unknown) {
   return value.trim();
 }
 
+function normalizePreferenceOverrides(
+  value: unknown
+): PreferenceOverrideDisclosure[] {
+  if (value === undefined) {
+    return [];
+  }
+
+  if (!Array.isArray(value)) {
+    throw new ApiError(
+      400,
+      'preferenceOverrides must be an array.'
+    );
+  }
+
+  return value.map((item) => {
+    if (
+      typeof item !== 'object' ||
+      item === null ||
+      Array.isArray(item)
+    ) {
+      throw new ApiError(
+        400,
+        'Each preference override must be an object.'
+      );
+    }
+
+    const override = item as Record<string, unknown>;
+    const userId = normalizeBundleId(override.userId);
+    const preference = normalizeBundleId(override.preference);
+    const reason = normalizeBundleId(override.reason);
+
+    return { userId, preference, reason };
+  });
+}
+
 function buildReservations(
   bundleId: string,
   candidate: ReturnType<
@@ -138,7 +186,8 @@ function buildReservations(
 
   for (const ingredient of candidate.ingredientList) {
     const allocations =
-      candidate.contributorMapping[ingredient.ingredientId] ?? [];
+      candidate.contributorMapping[ingredient.ingredientId] ??
+      [];
 
     for (const allocation of allocations) {
       reservations.push({
@@ -248,7 +297,10 @@ export function selectBundleCandidate(
   const context = getViewerContext(groupId, userId);
 
   if (context.viewerRole !== 'admin') {
-    throw new ApiError(403, 'Only admins can select the active bundle.');
+    throw new ApiError(
+      403,
+      'Only admins can select the active bundle.'
+    );
   }
 
   const group = getGroupRecord(groupId);
@@ -258,6 +310,9 @@ export function selectBundleCandidate(
   }
 
   const bundleId = normalizeBundleId(input.bundleId);
+  const preferenceOverrides = normalizePreferenceOverrides(
+    input.preferenceOverrides
+  );
   const pantrySnapshotVersion = normalizeVersionToken(
     input.pantrySnapshotVersion,
     'pantrySnapshotVersion'
@@ -287,7 +342,9 @@ export function selectBundleCandidate(
     getGroupPantry(groupId),
     memberConstraints
   );
-  const candidate = candidateSet.candidates.find((item) => item.id === bundleId);
+  const candidate = candidateSet.candidates.find(
+    (item) => item.id === bundleId
+  );
 
   if (!candidate) {
     throw new ApiError(
@@ -305,6 +362,19 @@ export function selectBundleCandidate(
   if (!result) {
     throw new ApiError(404, 'Group not found.');
   }
+
+  notifyBundleSelection(result.group, candidate);
+  notifyOverrideDisclosures(
+    result.group,
+    preferenceOverrides,
+    bundleId
+  );
+  notifyPantryUpdates(
+    result.group,
+    candidate,
+    group.activeReservations,
+    result.group.activeReservations
+  );
 
   return {
     groupId,
