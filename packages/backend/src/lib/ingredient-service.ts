@@ -78,11 +78,79 @@ async function ensureProfileExists(ownerId: string) {
   // Fail with a clear 404 before relying on a database foreign-key error.
   const profile = await prisma.profile.findUnique({
     where: { id: ownerId },
-    select: { id: true }
+    select: { id: true, displayName: true, email: true }
   });
 
   if (!profile) {
     throw new ApiError(404, 'Profile not found.');
+  }
+
+  return profile;
+}
+
+function formatIngredientQuantity(ingredient: Ingredient) {
+  if (ingredient.quantity === null) {
+    return null;
+  }
+
+  const quantity = Number(ingredient.quantity);
+  const unit = ingredient.unit?.trim();
+
+  return unit ? `${quantity} ${unit}` : String(quantity);
+}
+
+async function createIngredientAddedNotifications(
+  actor: { id: string; displayName: string | null; email: string },
+  ingredient: Ingredient
+) {
+  const groupMemberships = await prisma.groupMember.findMany({
+    where: { profileId: actor.id },
+    include: {
+      group: {
+        select: {
+          id: true,
+          name: true,
+          members: {
+            where: {
+              profileId: { not: actor.id }
+            },
+            select: { profileId: true }
+          }
+        }
+      }
+    }
+  });
+
+  const actorName = actor.displayName ?? actor.email;
+  const quantity = formatIngredientQuantity(ingredient);
+  const notificationRows = groupMemberships.flatMap(({ group }) =>
+    group.members.map((member) => ({
+      recipientId: member.profileId,
+      actorId: actor.id,
+      groupId: group.id,
+      ingredientId: ingredient.id,
+      type: 'INGREDIENT_ADDED' as const,
+      title: `${actorName} added ${ingredient.name}`,
+      message: `${actorName} added ${ingredient.name}${
+        quantity ? ` (${quantity})` : ''
+      } to ${group.name}.`,
+      metadata: {
+        actorName,
+        ingredientName: ingredient.name,
+        groupName: group.name,
+        quantity:
+          ingredient.quantity === null
+            ? null
+            : Number(ingredient.quantity),
+        unit: ingredient.unit
+      }
+    }))
+  );
+
+  if (notificationRows.length > 0) {
+    await prisma.notification.createMany({
+      data: notificationRows
+    });
   }
 }
 
@@ -102,7 +170,7 @@ export async function createIngredient(
   input: IngredientCreateInput
 ) {
   assertUuid(ownerId, 'ownerId');
-  await ensureProfileExists(ownerId);
+  const owner = await ensureProfileExists(ownerId);
 
   try {
     const ingredient = await prisma.ingredient.create({
@@ -121,6 +189,8 @@ export async function createIngredient(
         )
       }
     });
+
+    await createIngredientAddedNotifications(owner, ingredient);
 
     return serializeIngredient(ingredient);
   } catch (error) {
