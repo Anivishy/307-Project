@@ -1,0 +1,54 @@
+## Access Control
+
+This project uses Supabase Auth instead of a custom Express/JWT/bcrypt implementation.
+
+Supabase handles:
+- Password hashing and salting
+- User registration
+- Login authentication
+- JWT/session generation
+- Token validation
+
+The frontend stores the Supabase session using the Supabase client. Protected data access depends on the authenticated user session. Database-level access control is enforced using Supabase Row Level Security policies.
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant Frontend as React Frontend
+    participant Auth as Supabase Auth
+    participant DB as Supabase Database
+
+    User->>Frontend: Enter email/password on sign-up form
+    Frontend->>Auth: supabase.auth.signUp(credentials)
+    Auth->>DB: Create auth user
+    Auth-->>Frontend: Return session/JWT or confirmation response
+    Frontend-->>User: Show signed-in state or confirmation message
+```
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant Frontend as React Frontend
+    participant Auth as Supabase Auth
+    participant DB as Supabase Database
+
+    User->>Frontend: Enter email/password on sign-up form
+    Frontend->>Auth: supabase.auth.signUp(credentials)
+    Auth->>DB: Create auth user
+    Auth-->>Frontend: Return session/JWT or confirmation response
+    Frontend-->>User: Show signed-in state or confirmation message
+```
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant Frontend as React Frontend
+    participant Auth as Supabase Auth
+    participant DB as Supabase Database
+
+    User->>Frontend: Enter email/password on sign-up form
+    Frontend->>Auth: supabase.auth.signUp(credentials)
+    Auth->>DB: Create auth user
+    Auth-->>Frontend: Return session/JWT or confirmation response
+    Frontend-->>User: Show signed-in state or confirmation message
+```
