@@ -17,6 +17,7 @@ PROJECT ASSETS:
 
 DOCUMENT HISTORY: 	
 LAST DATE CHANGED: 5/04/26 	WHO: Vinayak WHAT WAS CHANGED: Added product vision
+LAST DATE CHANGED: 5/27/26 	WHO: Vinayak WHAT WAS CHANGED: Added US15: Seperating profile -> pantry + profile, added corresponding functional requirements
 ________________________________________ 
 
 Recipe OS
@@ -58,10 +59,10 @@ ________________________________________
 USER STORIES FOLLOW THE FORMAT: "AS A [TYPE OF USER], I WANT TO [ACTION] SO THAT [VALUE/BENEFIT]."...
 - US1 — Sign in with email OTP
 - US2 — Create or join a group
-- US3 — Add pantry items from ingredient database
+- US3 — Manage pantry items from a dedicated Pantry page
 - US4 — View cumulative pantry with owner cues
-- US5 — Store hard dietary constraints in profile
-- US6 — Store soft preference defaults in profile
+- US5 — Store hard dietary constraints in the Profile page
+- US6 — Store soft preference defaults in the Profile page
 - US7 — Toggle missing ingredients allowed
 - US8 — Manage staples list
 - US9 — Generate coordinated multi-course bundle
@@ -70,18 +71,19 @@ USER STORIES FOLLOW THE FORMAT: "AS A [TYPE OF USER], I WANT TO [ACTION] SO THAT
 - US12 — Automatic pantry decrement + activity log
 - US13 — Email notifications
 - US14 — Admin concurrency
+- US15 — Separate Pantry and Profile page workflows
 
 US-1 As a new user, I want to sign in with a one-time-password sent via email so that my pantry and preferences persist across sessions.
 
 US-2 As a user, I want to create or join a group so that I can collaborate with housemates.
 
-US-3 As a user, I want to add pantry items from an ingredient database so that meal generation uses data from a preloaded list of ingredients.
+US-3 As a user, I want a dedicated Pantry page where I can add, edit, and remove pantry items from an ingredient database so that meal generation uses accurate ingredient data.
 
 US-4 As a member, I want to view the group pantry with individual ingredient owner cues so that I can understand what the household can cook and who owns what.
 
-US-5 As a user, I want to store allergies and hard dietary restrictions in my profile so that generated meal bundles violating these hard restrictions are blocked automatically.
+US-5 As a user, I want to manage allergies and hard dietary restrictions from my Profile page so that generated meal bundles violating these hard restrictions are blocked automatically.
 
-US-6 As a user, I want to store soft defaults such as dislikes and cuisine preferences so that generation starts from my base preferences.
+US-6 As a user, I want to manage soft defaults such as dislikes and cuisine preferences from my Profile page so that generation starts from my base preferences.
 
 US-7 As an admin, I want to toggle whether missing ingredients are allowed so that generation matches the group's preferences for shopping for unavailable ingredients.
 
@@ -98,6 +100,8 @@ US-12 As an admin, I want available pantry quantities to decrement automatically
 US-13 As a member, I want to receive an email notification when an admin selects a meal bundle or overrides one of my soft preferences so that collaboration stays transparent.
 
 US-14 As an admin, I want to be warned about previously generated potential meal sets before I select so that I do not accidentally overwrite another admin's selection or double-decrement pantry quantities.
+
+US-15 As a user, I want pantry management to be separate from profile settings so that I can quickly update ingredients without navigating through unrelated personal preference fields.
 
 3.	FUNCTIONAL REQUIREMENTS
 
@@ -147,13 +151,15 @@ FR3.4 The system shall allow users to edit their own pantry items.
 
 FR3.5 The system shall allow users to remove their own pantry items.
 
-FR3.6 The system shall validate required pantry fields before saving.
+FR3.6 The system shall provide pantry item create, edit, and remove controls from a dedicated Pantry page.
 
-FR3.7 The system shall support the agreed MVP unit strategy for pantry quantities.
+FR3.7 The system shall validate required pantry fields before saving.
 
-FR3.8 The system shall support a fallback behavior if an ingredient is not found, if included in the release slice.
+FR3.8 The system shall support the agreed MVP unit strategy for pantry quantities.
 
-FR3.9 Pantry create, read, update, and delete behavior shall be covered by tests.
+FR3.9 The system shall support a fallback behavior if an ingredient is not found, if included in the release slice.
+
+FR3.10 Pantry create, read, update, and delete behavior shall be covered by tests.
 ⸻
 
 FR4.1 The system shall provide a group pantry view that combines pantry items from all group members.
@@ -180,17 +186,19 @@ FR5.2 Hard constraints shall include allergies, medical restrictions, and never-
 
 FR5.3 The system shall allow users to update saved hard constraints.
 
-FR5.4 The system shall automatically include hard constraints in bundle generation requests.
+FR5.4 The Profile page shall provide controls for users to view and update hard dietary constraints.
 
-FR5.5 The system shall validate generated candidates against hard constraints outside the LLM.
+FR5.5 The system shall automatically include hard constraints in bundle generation requests.
 
-FR5.6 The system shall block candidate bundles that violate hard constraints before they are displayed.
+FR5.6 The system shall validate generated candidates against hard constraints outside the LLM.
 
-FR5.7 Hard constraints shall not be overridable by admins.
+FR5.7 The system shall block candidate bundles that violate hard constraints before they are displayed.
 
-FR5.8 The validator shall produce a failure reason when a candidate is blocked.
+FR5.8 Hard constraints shall not be overridable by admins.
 
-FR5.9 Constraint saving and validator-blocking behavior shall be covered by tests.
+FR5.9 The validator shall produce a failure reason when a candidate is blocked.
+
+FR5.10 Constraint saving and validator-blocking behavior shall be covered by tests.
 
 FR6.1 The system shall allow users to save soft preference defaults in their profile.
 
@@ -198,17 +206,19 @@ FR6.2 Soft preferences shall include disliked ingredients, cuisine leanings, spi
 
 FR6.3 The system shall allow users to update saved soft preferences.
 
-FR6.4 The system shall automatically apply soft defaults to generation requests.
+FR6.4 The Profile page shall provide controls for users to view and update soft preference defaults.
 
-FR6.5 The system shall allow admins to override soft preferences for a specific generation request.
+FR6.5 The system shall automatically apply soft defaults to generation requests.
 
-FR6.6 The system shall require an admin-provided reason when overriding a soft preference.
+FR6.6 The system shall allow admins to override soft preferences for a specific generation request.
 
-FR6.7 The system shall display an override badge on candidate bundle cards when a soft preference has been overridden.
+FR6.7 The system shall require an admin-provided reason when overriding a soft preference.
 
-FR6.8 The system shall display override details in the bundle rationale view.
+FR6.8 The system shall display an override badge on candidate bundle cards when a soft preference has been overridden.
 
-FR6.9 Soft preference application and override visibility shall be covered by tests.
+FR6.9 The system shall display override details in the bundle rationale view.
+
+FR6.10 Soft preference application and override visibility shall be covered by tests.
 
 ⸻
 
@@ -408,10 +418,24 @@ FR14.10 Concurrency tests shall confirm that simultaneous admin selections do no
 
 FR14.11 Concurrency tests shall confirm that stale-result warnings fire when expected.
 
+⸻
+
+FR15.1 The system shall provide a dedicated Pantry page for personal pantry item management.
+
+FR15.2 The system shall provide a dedicated Profile page for personal account details, hard dietary constraints, and soft preference defaults.
+
+FR15.3 The primary application navigation shall expose both Pantry and Profile page destinations.
+
+FR15.4 The Profile page shall not be the primary location for pantry item create, edit, or remove controls.
+
+FR15.5 The Pantry page shall read and write the same authenticated user's pantry data that is used by cumulative group pantry views and meal generation.
+
+FR15.6 Page separation behavior shall be covered by UI or integration tests.
+
 5. NON-FUNCTIONAL REQUIREMENTS
 -	INTEGRITY: The system shall validate user input and handle errors without crashing.
 -	SECURITY: Passwords shall be hashed using bcrypt, and sensitive data stored in environment variables.
--	USABILITY: The interface shall be simple and easy to navigate across profile, groups, and menu pages.
+-	USABILITY: The interface shall be simple and easy to navigate across pantry, profile, groups, and menu pages.
 -	PERFORMANCE: The system shall respond quickly, including menu generation within a reasonable time.
 -	RELIABILITY: The system shall operate consistently without data loss or frequent failures.
 -	SCALABILITY: The system shall support increasing users and groups over time.
@@ -435,5 +459,4 @@ ID	REQUIREMENT	LINE OF CODE
 9.	AI USAGE & DISCLOSURE (MANDATORY)
 -	MODEL(S) USED: [E.G., CLAUDE 3.5, GPT-4O]
 -	PROMPTS USED DURING CODING: 
-
 
