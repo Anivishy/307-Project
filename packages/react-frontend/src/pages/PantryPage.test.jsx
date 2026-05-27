@@ -49,8 +49,23 @@ function jsonResponse(payload, status = 200) {
 
 describe('PantryPage controls', () => {
   let fetchMock;
+  let storage;
 
   beforeEach(() => {
+    storage = new Map();
+    vi.stubGlobal('localStorage', {
+      getItem: vi.fn((key) => storage.get(key) ?? null),
+      setItem: vi.fn((key, value) => {
+        storage.set(key, String(value));
+      }),
+      removeItem: vi.fn((key) => {
+        storage.delete(key);
+      }),
+      clear: vi.fn(() => {
+        storage.clear();
+      })
+    });
+
     saveSession({
       profileId: 'profile-1',
       email: 'cook@example.com',

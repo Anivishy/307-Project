@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import {
@@ -51,6 +51,30 @@ const membersPayload = {
   ]
 };
 
+const groupSettingsPayload = {
+  groupId: "dorm-dinner-crew",
+  groupName: "Dorm Dinner Crew",
+  allowMissingIngredients: true,
+  staplesEnabled: true,
+  defaultStaplesPreset: [
+    { id: "olive-oil", name: "Olive oil" },
+    { id: "butter", name: "Butter" },
+    { id: "salt", name: "Salt" },
+    { id: "pepper", name: "Pepper" }
+  ],
+  customStaples: [{ id: "basil-leaves", name: "Basil leaves" }],
+  ingredientCatalog: [
+    { id: "olive-oil", name: "Olive oil" },
+    { id: "butter", name: "Butter" },
+    { id: "salt", name: "Salt" },
+    { id: "pepper", name: "Pepper" },
+    { id: "basil-leaves", name: "Basil leaves" },
+    { id: "thyme", name: "Fresh thyme" }
+  ],
+  updatedAt: "2026-05-11T07:00:00.000Z",
+  viewerRole: "admin"
+};
+
 function renderGroupDetailPage() {
   render(
     <MemoryRouter initialEntries={["/groups/dorm-dinner-crew"]}>
@@ -65,11 +89,35 @@ describe("GroupDetailPage", () => {
   let fetchMock;
 
   beforeEach(() => {
-    fetchMock = vi.fn(async (input) => {
+    fetchMock = vi.fn(async (input, options) => {
       const url = String(input);
-      const payload = url.endsWith("/members")
-        ? membersPayload
-        : groupPayload;
+      let payload = groupPayload;
+
+      if (url.endsWith("/members")) {
+        payload = membersPayload;
+      }
+
+      if (url.endsWith("/settings")) {
+        if (options?.method === "PATCH") {
+          const body = JSON.parse(options.body);
+          payload = {
+            ...groupSettingsPayload,
+            ...body,
+            customStaples: (
+              body.customStaples ??
+              groupSettingsPayload.customStaples.map((item) => item.id)
+            )
+              .map((id) =>
+                groupSettingsPayload.ingredientCatalog.find(
+                  (item) => item.id === id
+                )
+              )
+              .filter(Boolean)
+          };
+        } else {
+          payload = groupSettingsPayload;
+        }
+      }
 
       return new Response(JSON.stringify(payload), {
         status: 200,
@@ -115,5 +163,69 @@ describe("GroupDetailPage", () => {
     expect(screen.getAllByText("Avery Cook").length).toBeGreaterThan(0);
     expect(screen.getByText("2 cups")).toBeInTheDocument();
     expect(screen.getByText("4 pcs")).toBeInTheDocument();
+  });
+
+  it("shows the admin settings tab and reflects the current missing-ingredient setting", async () => {
+    const user = userEvent.setup();
+    renderGroupDetailPage();
+
+    await user.click(await screen.findByRole("button", { name: /settings/i }));
+
+    const toggle = await screen.findByRole("checkbox", {
+      name: "Allow Missing Ingredients"
+    });
+
+    expect(toggle).toBeChecked();
+  });
+
+  it("saves the missing-ingredient setting from the admin tab", async () => {
+    const user = userEvent.setup();
+    renderGroupDetailPage();
+
+    await user.click(await screen.findByRole("button", { name: /settings/i }));
+    await user.click(
+      await screen.findByRole("checkbox", {
+        name: "Allow Missing Ingredients"
+      })
+    );
+
+    await waitFor(() => {
+      expect(
+        fetchMock.mock.calls.some(
+          ([url, options]) =>
+            String(url).endsWith("/settings") &&
+            options?.method === "PATCH" &&
+            JSON.parse(options.body).allowMissingIngredients === false
+        )
+      ).toBe(true);
+    });
+  });
+
+  it("shows default staples and saves a custom staple update", async () => {
+    const user = userEvent.setup();
+    renderGroupDetailPage();
+
+    await user.click(await screen.findByRole("button", { name: /settings/i }));
+
+    await screen.findByText("Olive oil");
+    expect(screen.getByText("Basil leaves")).toBeInTheDocument();
+
+    await user.type(
+      screen.getByPlaceholderText("Search ingredient suggestions"),
+      "Fresh thyme"
+    );
+    await user.click(screen.getByRole("button", { name: "Add Staple" }));
+    await user.click(screen.getByRole("button", { name: /Save Staples/i }));
+
+    const settingsPatchCall = fetchMock.mock.calls.find(
+      ([url, options]) =>
+        String(url).endsWith("/settings") && options?.method === "PATCH"
+    );
+
+    expect(settingsPatchCall).toBeDefined();
+    expect(JSON.parse(settingsPatchCall[1].body)).toMatchObject({
+      staplesEnabled: true,
+      customStaples: ["basil-leaves", "thyme"]
+    });
   });
 });
