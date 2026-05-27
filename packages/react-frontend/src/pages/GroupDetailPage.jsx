@@ -20,7 +20,7 @@ function buildInviteLink(inviteCode) {
 }
 
 function initials(member) {
-  const name = member.displayName || member.email;
+  const name = member.displayName || member.email || '??';
   return name.slice(0, 2).toUpperCase();
 }
 
@@ -68,7 +68,7 @@ export function GroupDetailPage() {
         ]);
         if (isCancelled) return;
         setGroupInfo(groupInfoPayload);
-        setMembers(membersPayload.members);
+        setMembers(membersPayload.members ?? []);
       } catch (error) {
         if (!isCancelled) {
           setErrorMessage(error instanceof Error ? error.message : 'Unable to load group.');
@@ -97,9 +97,10 @@ export function GroupDetailPage() {
   // Build combined pantry: flat list of all ingredients across members
   const combinedPantry = members
     .flatMap((m) =>
-      m.ingredients.map((ing) => ({
+      (m.ingredients ?? []).map((ing) => ({
         ...ing,
-        ownerName: m.displayName || m.email.split('@')[0]
+        ownerName:
+          m.displayName || m.email?.split('@')[0] || 'Member'
       }))
     )
     .sort((a, b) => a.name.localeCompare(b.name));
@@ -167,38 +168,47 @@ export function GroupDetailPage() {
               <p style={{ opacity: 0.6, fontSize: '0.9rem' }}>No members found.</p>
             ) : (
               <div className="member-grid">
-                {members.map((member) => (
-                  <article className="member-card surface-card" key={member.profileId}>
-                    <div className="member-card__avatar">{initials(member)}</div>
-                    <div className="member-card__info">
-                      <strong>{member.displayName || member.email.split('@')[0]}</strong>
-                      <small>{member.email}</small>
-                      <span className={`member-role-badge member-role-badge--${member.role.toLowerCase()}`}>
-                        {member.role}
-                      </span>
-                    </div>
-                    <div className="member-card__pantry">
-                      <p className="member-card__pantry-heading">
-                        <Package size={14} /> {member.ingredients.length} item{member.ingredients.length !== 1 ? 's' : ''}
-                      </p>
-                      {member.ingredients.length > 0 && (
-                        <ul className="member-pantry-list">
-                          {member.ingredients.slice(0, 5).map((ing) => (
-                            <li key={ing.id}>
-                              <span className="ing-name">{ing.name}</span>
-                              {ing.quantity !== null && (
-                                <span className="ing-qty">{ing.quantity} {ing.unit}</span>
-                              )}
-                            </li>
-                          ))}
-                          {member.ingredients.length > 5 && (
-                            <li className="ing-more">+{member.ingredients.length - 5} more</li>
-                          )}
-                        </ul>
-                      )}
-                    </div>
-                  </article>
-                ))}
+                {members.map((member) => {
+                  const memberIngredients = member.ingredients ?? [];
+                  const memberName =
+                    member.displayName ||
+                    member.email?.split('@')[0] ||
+                    'Member';
+                  const memberRole = member.role ?? 'Member';
+
+                  return (
+                    <article className="member-card surface-card" key={member.profileId ?? member.email}>
+                      <div className="member-card__avatar">{initials(member)}</div>
+                      <div className="member-card__info">
+                        <strong>{memberName}</strong>
+                        <small>{member.email ?? ''}</small>
+                        <span className={`member-role-badge member-role-badge--${memberRole.toLowerCase()}`}>
+                          {memberRole}
+                        </span>
+                      </div>
+                      <div className="member-card__pantry">
+                        <p className="member-card__pantry-heading">
+                          <Package size={14} /> {memberIngredients.length} item{memberIngredients.length !== 1 ? 's' : ''}
+                        </p>
+                        {memberIngredients.length > 0 && (
+                          <ul className="member-pantry-list">
+                            {memberIngredients.slice(0, 5).map((ing) => (
+                              <li key={ing.id}>
+                                <span className="ing-name">{ing.name}</span>
+                                {ing.quantity !== null && ing.quantity !== undefined && (
+                                  <span className="ing-qty">{ing.quantity} {ing.unit}</span>
+                                )}
+                              </li>
+                            ))}
+                            {memberIngredients.length > 5 && (
+                              <li className="ing-more">+{memberIngredients.length - 5} more</li>
+                            )}
+                          </ul>
+                        )}
+                      </div>
+                    </article>
+                  );
+                })}
               </div>
             )}
           </section>
@@ -214,16 +224,16 @@ export function GroupDetailPage() {
             {isLoading ? (
               <StatusMessage type="loading" title="Loading pantry" message="Combining all members' ingredients…" />
             ) : combinedPantry.length === 0 ? (
-              <p style={{ opacity: 0.6, fontSize: '0.9rem' }}>No pantry items yet. Ask members to add ingredients to their profile.</p>
+              <p style={{ opacity: 0.6, fontSize: '0.9rem' }}>No pantry items yet. Ask members to add ingredients to My Pantry.</p>
             ) : (
               <div className="combined-pantry-list">
                 {combinedPantry.map((ing) => (
-                  <div className="combined-pantry-row" key={ing.id}>
+                  <div className="combined-pantry-row" key={`${ing.ownerName}-${ing.id}`}>
                     <div className="combined-pantry-row__name">
                       <span>{ing.name}</span>
                       <span className="combined-pantry-row__owner">{ing.ownerName}</span>
                     </div>
-                    {ing.quantity !== null && (
+                    {ing.quantity !== null && ing.quantity !== undefined && (
                       <span className="combined-pantry-row__qty">{ing.quantity} {ing.unit}</span>
                     )}
                   </div>

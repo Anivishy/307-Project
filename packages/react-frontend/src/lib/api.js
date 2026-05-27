@@ -4,16 +4,23 @@ import {
 } from './authApi.js';
 
 export async function readJson(response) {
-  if (response.status === 204) {
-    return null;
-  }
+  const text = await response.text();
+  let payload = null;
 
-  const payload = await response.json();
+  if (text) {
+    try {
+      payload = JSON.parse(text);
+    } catch {
+      if (response.ok) {
+        throw new Error('Received an invalid response from the server.');
+      }
+    }
+  }
 
   if (!response.ok) {
     throw new Error(
-      payload.error?.message ??
-        payload.error ??
+      payload?.error?.message ??
+        payload?.error ??
         'Request failed.'
     );
   }

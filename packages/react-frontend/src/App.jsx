@@ -7,6 +7,7 @@ import { RecipeListPage } from "./pages/RecipeListPage.jsx";
 import { RecipeDetailPage } from "./pages/RecipeDetailPage.jsx";
 import { AddRecipePage } from "./pages/AddRecipePage.jsx";
 import { FavoritesPage } from "./pages/FavoritesPage.jsx";
+import { PantryPage } from "./pages/PantryPage.jsx";
 import { ProfilePage } from "./pages/ProfilePage.jsx";
 import { GroupsPage } from "./pages/GroupsPage.jsx";
 import { GroupDetailPage } from "./pages/GroupDetailPage.jsx";
@@ -26,6 +27,7 @@ export default function App() {
         <Route path="/recipes/:recipeId" element={<RecipeDetailPage />} />
         <Route path="/add-recipe" element={<AddRecipePage />} />
         <Route path="/favorites" element={<FavoritesPage />} />
+        <Route path="/pantry" element={<PantryPage />} />
         <Route path="/profile" element={<ProfilePage />} />
         <Route path="/groups" element={<GroupsPage />} />
         <Route path="/groups/:groupId" element={<GroupDetailPage />} />

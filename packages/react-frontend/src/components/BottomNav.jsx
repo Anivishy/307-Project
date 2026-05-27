@@ -1,10 +1,11 @@
 import { createElement } from "react";
-import { UserRound, UsersRound } from "lucide-react";
+import { Package, UserRound, UsersRound } from "lucide-react";
 import { NavLink } from "react-router-dom";
 
 const navItems = [
   { label: "Groups", description: "Manage shared meals", to: "/groups", icon: UsersRound },
-  { label: "Profile", description: "Update pantry items", to: "/profile", icon: UserRound },
+  { label: "My Pantry", description: "Track ingredients", to: "/pantry", icon: Package },
+  { label: "Profile", description: "Account and rules", to: "/profile", icon: UserRound },
 ];
 
 export function BottomNav() {

@@ -81,6 +81,12 @@ describe('ProfilePage US5 controls', () => {
     ).toBeInTheDocument();
     expect(screen.getByText('low sodium')).toBeInTheDocument();
     expect(screen.getByText('Shrimp')).toBeInTheDocument();
+    expect(
+      screen.queryByText('Add from Database')
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText('Current Ingredients')
+    ).not.toBeInTheDocument();
 
     await user.click(
       screen.getByRole('button', { name: /Save Rules/i })
