@@ -1,56 +1,54 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi
+} from "vitest";
 import { GroupDetailPage } from "./GroupDetailPage.jsx";
 
-const groupSettingsPayload = {
-  groupId: "dorm-dinner-crew",
-  groupName: "Dorm Dinner Crew",
-  allowMissingIngredients: true,
-  staplesEnabled: true,
-  defaultStaplesPreset: [
-    { id: "olive-oil", name: "Olive oil" },
-    { id: "butter", name: "Butter" },
-    { id: "salt", name: "Salt" },
-    { id: "pepper", name: "Pepper" },
-  ],
-  customStaples: [{ id: "basil-leaves", name: "Basil leaves" }],
-  ingredientCatalog: [
-    { id: "olive-oil", name: "Olive oil" },
-    { id: "butter", name: "Butter" },
-    { id: "salt", name: "Salt" },
-    { id: "pepper", name: "Pepper" },
-    { id: "basil-leaves", name: "Basil leaves" },
-    { id: "thyme", name: "Fresh thyme" },
-  ],
-  updatedAt: "2026-05-11T07:00:00.000Z",
-  viewerRole: "admin",
+const groupPayload = {
+  id: "dorm-dinner-crew",
+  name: "Dorm Dinner Crew",
+  description: "Weekend cooking group.",
+  role: "Admin",
+  inviteCode: "DINNER42"
 };
 
-const bundleCandidatePayload = {
-  groupId: "dorm-dinner-crew",
-  groupName: "Dorm Dinner Crew",
-  allowMissingIngredients: true,
-  viewerRole: "admin",
-  filteredOutCandidateCount: 0,
-  candidates: [
+const membersPayload = {
+  members: [
     {
-      id: "bundle-saffron-pasta-night",
-      title: "Saffron Pasta Night",
-      courses: [{ type: "main", title: "Saffron Tomato Pasta" }],
-      rationale: "Missing items are disclosed so the group can decide whether shopping is worth it.",
-      assumedStaples: [{ ingredientId: "salt", name: "Salt" }],
-      missingIngredients: [
+      profileId: "profile-avery",
+      displayName: "Avery Cook",
+      email: "avery@example.com",
+      role: "Admin",
+      ingredients: [
         {
-          ingredientId: "saffron-threads",
-          name: "Saffron threads",
-          quantityNeeded: 1,
-          unit: "tbsp",
+          id: "rice",
+          name: "Rice",
+          quantity: 2,
+          unit: "cups"
         },
-      ],
+        {
+          id: "tomato",
+          name: "Tomato",
+          quantity: 4,
+          unit: "pcs"
+        }
+      ]
     },
-  ],
+    {
+      profileId: "profile-sam",
+      displayName: "Sam Prep",
+      email: "sam@example.com",
+      role: "Member",
+      ingredients: []
+    }
+  ]
 };
 
 function renderGroupDetailPage() {
@@ -59,7 +57,7 @@ function renderGroupDetailPage() {
       <Routes>
         <Route path="/groups/:groupId" element={<GroupDetailPage />} />
       </Routes>
-    </MemoryRouter>,
+    </MemoryRouter>
   );
 }
 
@@ -69,11 +67,13 @@ describe("GroupDetailPage", () => {
   beforeEach(() => {
     fetchMock = vi.fn(async (input) => {
       const url = String(input);
-      const payload = url.endsWith("/settings") ? groupSettingsPayload : bundleCandidatePayload;
+      const payload = url.endsWith("/members")
+        ? membersPayload
+        : groupPayload;
 
       return new Response(JSON.stringify(payload), {
         status: 200,
-        headers: { "content-type": "application/json" },
+        headers: { "content-type": "application/json" }
       });
     });
 
@@ -84,44 +84,36 @@ describe("GroupDetailPage", () => {
     vi.unstubAllGlobals();
   });
 
-  it("reflects the current allowMissingIngredients setting on load", async () => {
+  it("loads group details and member pantry counts", async () => {
     renderGroupDetailPage();
 
-    const toggle = await screen.findByRole("checkbox", {
-      name: "Allow Missing Ingredients",
-    });
-
-    expect(toggle).toBeChecked();
+    expect(
+      await screen.findByText("Dorm Dinner Crew")
+    ).toBeInTheDocument();
+    expect(screen.getByText("DINNER42")).toBeInTheDocument();
+    expect(screen.getByText("Avery Cook")).toBeInTheDocument();
+    expect(screen.getByText("Sam Prep")).toBeInTheDocument();
+    expect(screen.getByText("2 items")).toBeInTheDocument();
+    expect(screen.getByText("0 items")).toBeInTheDocument();
   });
 
-  it("shows missing ingredient disclosures on bundle cards when enabled", async () => {
-    renderGroupDetailPage();
-
-    await screen.findByText("Saffron Pasta Night");
-
-    expect(screen.getByText("Missing Items")).toBeInTheDocument();
-    expect(screen.getByText("1 tbsp Saffron threads")).toBeInTheDocument();
-  });
-
-  it("shows default staples and saves a custom staple update", async () => {
+  it("shows the combined pantry tab", async () => {
     const user = userEvent.setup();
     renderGroupDetailPage();
 
-    await screen.findByText("Olive oil");
-    expect(screen.getByText("Basil leaves")).toBeInTheDocument();
+    expect(
+      await screen.findByText("Dorm Dinner Crew")
+    ).toBeInTheDocument();
 
-    await user.type(screen.getByPlaceholderText("Search ingredient suggestions"), "Fresh thyme");
-    await user.click(screen.getByRole("button", { name: "Add Staple" }));
-    await user.click(screen.getByRole("button", { name: /Save Staples/i }));
-
-    const settingsPatchCall = fetchMock.mock.calls.find(
-      ([url, options]) => String(url).endsWith("/settings") && options?.method === "PATCH",
+    await user.click(
+      screen.getByRole("button", { name: /Pantry/i })
     );
 
-    expect(settingsPatchCall).toBeDefined();
-    expect(JSON.parse(settingsPatchCall[1].body)).toMatchObject({
-      staplesEnabled: true,
-      customStaples: ["basil-leaves", "thyme"],
-    });
+    expect(screen.getByText("Combined Pantry")).toBeInTheDocument();
+    expect(screen.getByText("Rice")).toBeInTheDocument();
+    expect(screen.getByText("Tomato")).toBeInTheDocument();
+    expect(screen.getAllByText("Avery Cook").length).toBeGreaterThan(0);
+    expect(screen.getByText("2 cups")).toBeInTheDocument();
+    expect(screen.getByText("4 pcs")).toBeInTheDocument();
   });
 });

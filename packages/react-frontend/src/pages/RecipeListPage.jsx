@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { ChefHat, Sparkles, UsersRound } from "lucide-react";
+import { ChefHat, Package, Sparkles, UsersRound } from "lucide-react";
 import { EmptyState } from "../components/EmptyState.jsx";
 import { GlassIconButton } from "../components/GlassIconButton.jsx";
 import { RecipeCard } from "../components/RecipeCard.jsx";
@@ -42,8 +42,8 @@ export function RecipeListPage() {
       <SearchFilter search={search} onSearchChange={setSearch} category={category} onCategoryChange={setCategory} />
 
       <div className="quick-actions">
-        <Link to="/profile">
-          <ChefHat size={24} />
+        <Link to="/pantry">
+          <Package size={24} />
           <span>Pantry</span>
         </Link>
         <Link to="/groups">
