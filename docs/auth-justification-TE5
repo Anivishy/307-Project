@@ -1,0 +1,130 @@
+# TE5 Access Control
+
+This project uses Supabase Auth instead of a custom Express `bcrypt` and JWT implementation. Supabase Auth provides the password hashing, salting, credential verification, session creation, refresh token handling, and access token validation that the class example implements manually.
+
+The application still follows the same access-control design:
+
+- The frontend collects credentials only in request bodies, never URL query parameters.
+- The backend exposes authentication routes for password sign-up and sign-in.
+- Supabase Auth creates or validates the user and returns a session/access token.
+- The frontend saves the serialized session in browser `localStorage`.
+- Protected frontend API calls send `Authorization: Bearer <access token>`.
+- Protected backend routes validate the bearer token with Supabase before reading or modifying user-owned data.
+- Database tables have Row Level Security enabled in the initial Prisma migration, and backend route handlers enforce authenticated user identity before database operations.
+
+Relevant implementation files:
+
+- Frontend auth API: [`packages/react-frontend/src/lib/authApi.js`](../packages/react-frontend/src/lib/authApi.js)
+- Frontend session storage: [`packages/react-frontend/src/lib/session.js`](../packages/react-frontend/src/lib/session.js)
+- Frontend authenticated fetch helper: [`packages/react-frontend/src/lib/api.js`](../packages/react-frontend/src/lib/api.js)
+- Sign-in/sign-up page: [`packages/react-frontend/src/pages/SignInPage.jsx`](../packages/react-frontend/src/pages/SignInPage.jsx)
+- Backend auth service: [`packages/backend/src/lib/auth-service.ts`](../packages/backend/src/lib/auth-service.ts)
+- Supabase Auth wrapper: [`packages/backend/src/lib/supabase-auth.ts`](../packages/backend/src/lib/supabase-auth.ts)
+- Backend bearer-token validation: [`packages/backend/src/lib/request-user.ts`](../packages/backend/src/lib/request-user.ts)
+- Password sign-up route: [`packages/backend/src/app/api/auth/password/signup/route.ts`](../packages/backend/src/app/api/auth/password/signup/route.ts)
+- Password sign-in route: [`packages/backend/src/app/api/auth/password/signin/route.ts`](../packages/backend/src/app/api/auth/password/signin/route.ts)
+- RLS-enabled migration: [`prisma/migrations/20260511170037_init_recipe_collab/migration.sql`](../prisma/migrations/20260511170037_init_recipe_collab/migration.sql)
+
+## Sign-Up Flow
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant Frontend as React Frontend
+    participant Backend as Next.js API
+    participant Auth as Supabase Auth
+    participant DB as Supabase/Postgres DB
+
+    User->>Frontend: Enter display name, email, and password
+    Frontend->>Backend: POST /api/auth/password/signup
+    Backend->>Auth: Sign up with email, password, metadata, redirect URL
+    Auth->>Auth: Hash and salt password
+    Auth->>DB: Create auth user
+    Auth-->>Backend: Return session or email-confirmation response
+    alt Session returned
+        Backend->>DB: Find or create profile for auth user id
+        DB-->>Backend: Return profile
+        Backend-->>Frontend: Return profile and serialized session
+        Frontend->>Frontend: Save session in localStorage
+        Frontend-->>User: Navigate to authenticated app view
+    else Email confirmation required
+        Backend-->>Frontend: Return confirmation-required response
+        Frontend-->>User: Ask user to check email
+    end
+```
+
+## Sign-In Flow
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant Frontend as React Frontend
+    participant Backend as Next.js API
+    participant Auth as Supabase Auth
+    participant DB as Supabase/Postgres DB
+
+    User->>Frontend: Enter email and password
+    Frontend->>Backend: POST /api/auth/password/signin
+    Backend->>Auth: Password grant request
+    Auth->>Auth: Verify password against stored password hash
+    alt Credentials valid
+        Auth-->>Backend: Return Supabase session/access token
+        Backend->>DB: Find or create profile for auth user id
+        DB-->>Backend: Return profile
+        Backend-->>Frontend: Return profile and serialized session
+        Frontend->>Frontend: Save session in localStorage
+        Frontend-->>User: Navigate to authenticated app view
+    else Credentials invalid
+        Auth-->>Backend: Return auth error
+        Backend-->>Frontend: Return error response
+        Frontend-->>User: Show sign-in error
+    end
+```
+
+## Protected API Request Flow
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant Frontend as React Frontend
+    participant Backend as Next.js API
+    participant Auth as Supabase Auth
+    participant DB as Supabase/Postgres DB
+
+    User->>Frontend: Open protected data view
+    Frontend->>Frontend: Read saved session from localStorage
+    Frontend->>Backend: API request with Authorization: Bearer access_token
+    Backend->>Backend: Parse bearer token
+    Backend->>Auth: Validate access token with Supabase /user endpoint
+    alt Token is valid
+        Auth-->>Backend: Return authenticated user id
+        Backend->>DB: Query or modify rows scoped to authenticated user id
+        DB-->>Backend: Return authorized data
+        Backend-->>Frontend: Return protected data
+        Frontend-->>User: Render protected view
+    else Token is missing or invalid
+        Backend-->>Frontend: Return 401 Unauthorized
+        Frontend-->>User: Show unavailable/error state or require sign-in
+    end
+```
+
+## Expired Token Refresh Flow
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant Frontend as React Frontend
+    participant Backend as Next.js API
+    participant Auth as Supabase Auth
+
+    User->>Frontend: Open protected data view
+    Frontend->>Frontend: Check saved session expiration
+    alt Session is expiring soon
+        Frontend->>Backend: POST /api/auth/session/refresh with refresh token
+        Backend->>Auth: Refresh Supabase session
+        Auth-->>Backend: Return new access token and refresh token
+        Backend-->>Frontend: Return serialized session
+        Frontend->>Frontend: Save refreshed session in localStorage
+    end
+    Frontend->>Backend: Retry protected request with Bearer access token
+```
