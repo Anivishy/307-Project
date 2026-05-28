@@ -1,18 +1,27 @@
 import { ApiError } from './api-error';
 import {
   normalizeEmail,
-  normalizeOptionalText
+  normalizeOptionalText,
+  normalizeRequiredText
 } from './input-normalization';
-import { findOrCreateProfileForEmail } from './profile-service';
 import {
+  anonymizeProfileForAccountDeletion,
+  findOrCreateProfileForEmail,
+  updateProfileEmail
+} from './profile-service';
+import {
+  deleteSupabaseAuthUser,
   getSupabaseUserFromAccessToken,
   hasSupabaseAuthUserWithEmail,
   refreshSupabaseSession,
   requestSupabaseEmailOtp,
   requestSupabaseMagicLink,
+  revokeSupabaseSessions,
   signInSupabaseWithPassword,
   signUpSupabaseWithPassword,
+  updateSupabaseUser,
   verifySupabaseEmailOtp,
+  type SupabaseAuthUser,
   type SupabaseAuthSession
 } from './supabase-auth';
 
@@ -49,6 +58,44 @@ type PasswordAuthInput = {
 type SignUpPasswordInput = PasswordAuthInput & {
   displayName?: unknown;
 };
+
+type EmailChangeInput = {
+  email?: unknown;
+  newEmail?: unknown;
+};
+
+type PasswordChangeInput = {
+  currentPassword?: unknown;
+  newPassword?: unknown;
+};
+
+type AccountDeletionInput = {
+  currentPassword?: unknown;
+  confirmation?: unknown;
+};
+
+function isRecord(
+  value: unknown
+): value is Record<string, unknown> {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    !Array.isArray(value)
+  );
+}
+
+function readAliasedValue(
+  input: Record<string, unknown>,
+  keys: string[]
+) {
+  for (const key of keys) {
+    if (Object.prototype.hasOwnProperty.call(input, key)) {
+      return input[key];
+    }
+  }
+
+  return undefined;
+}
 
 function normalizeRedirectTo(value: unknown) {
   if (typeof value !== 'string' || value.trim().length === 0) {
@@ -93,12 +140,23 @@ function normalizeRequiredDisplayName(value: unknown) {
   return displayName;
 }
 
-function normalizePassword(value: unknown) {
+function normalizePassword(
+  value: unknown,
+  fieldName = 'password'
+) {
   if (typeof value !== 'string' || value.length < 8) {
     throw new ApiError(
       400,
-      'password must be at least 8 characters.'
+      `${fieldName} must be at least 8 characters.`
     );
+  }
+
+  return value;
+}
+
+function normalizeCurrentPassword(value: unknown) {
+  if (typeof value !== 'string' || value.length === 0) {
+    throw new ApiError(400, 'currentPassword is required.');
   }
 
   return value;
@@ -218,6 +276,82 @@ function requireSessionEmail(session: SupabaseAuthSession) {
   }
 
   return session.user.email;
+}
+
+function requireUserEmail(user: SupabaseAuthUser) {
+  if (
+    typeof user.email !== 'string' ||
+    user.email.trim().length === 0
+  ) {
+    throw new ApiError(
+      502,
+      'Supabase Auth returned a user without an email address.'
+    );
+  }
+
+  return user.email;
+}
+
+function normalizeSensitiveInput(input: unknown) {
+  if (!isRecord(input)) {
+    throw new ApiError(
+      400,
+      'Request body must be an object.'
+    );
+  }
+
+  return input;
+}
+
+function normalizeEmailChangeTarget(input: EmailChangeInput) {
+  const body = normalizeSensitiveInput(input);
+  const value = readAliasedValue(body, ['newEmail', 'email']);
+
+  if (value === undefined) {
+    throw new ApiError(400, 'newEmail is required.');
+  }
+
+  return normalizeEmail(value);
+}
+
+function normalizeAccountConfirmation(
+  value: unknown,
+  email: string
+) {
+  const confirmation = normalizeRequiredText(
+    value,
+    'confirmation',
+    320
+  ).toLowerCase();
+
+  if (confirmation !== email.trim().toLowerCase()) {
+    throw new ApiError(
+      400,
+      'confirmation must match the account email.'
+    );
+  }
+}
+
+async function requirePasswordReauthentication(
+  accessToken: string,
+  input: PasswordChangeInput | AccountDeletionInput
+) {
+  const body = normalizeSensitiveInput(input);
+  const user = await getSupabaseUserFromAccessToken(accessToken);
+  const email = requireUserEmail(user);
+  const session = await signInSupabaseWithPassword(
+    email,
+    normalizeCurrentPassword(body.currentPassword)
+  );
+
+  if (session.user.id !== user.id) {
+    throw new ApiError(
+      401,
+      'Current password did not re-authenticate this account.'
+    );
+  }
+
+  return { user, email, session };
 }
 
 export async function requestEmailOtp(input: OtpRequestInput) {
@@ -376,5 +510,155 @@ export async function refreshSession(
   return {
     profile,
     session: serializeSession(session, profile)
+  };
+}
+
+export async function requestEmailChange(
+  accessToken: string,
+  input: EmailChangeInput
+) {
+  const user = await getSupabaseUserFromAccessToken(accessToken);
+  const currentEmail = normalizeEmail(requireUserEmail(user));
+  const newEmail = normalizeEmailChangeTarget(input);
+
+  if (newEmail === currentEmail) {
+    throw new ApiError(
+      400,
+      'newEmail must be different from the current email.'
+    );
+  }
+
+  if (await hasSupabaseAuthUserWithEmail(newEmail)) {
+    throw new ApiError(
+      409,
+      'An account already exists for this email.'
+    );
+  }
+
+  const updatedUser = await updateSupabaseUser(accessToken, {
+    email: newEmail
+  });
+
+  if (updatedUser.id !== user.id) {
+    throw new ApiError(
+      502,
+      'Supabase Auth returned a different user for the email change.'
+    );
+  }
+
+  const updatedEmail =
+    typeof updatedUser.email === 'string'
+      ? normalizeEmail(updatedUser.email)
+      : null;
+
+  if (updatedEmail === newEmail) {
+    const profile = await updateProfileEmail(user.id, newEmail);
+    await revokeSupabaseSessions(accessToken, 'global');
+
+    return {
+      status: 'changed',
+      email: newEmail,
+      profile,
+      sessionsRevoked: true,
+      requiresSignIn: true
+    };
+  }
+
+  return {
+    status: 'verificationRequired',
+    email: newEmail,
+    provider: 'supabase',
+    sessionsRevoked: false
+  };
+}
+
+export async function completeEmailChange(
+  accessToken: string,
+  input: EmailChangeInput
+) {
+  const user = await getSupabaseUserFromAccessToken(accessToken);
+  const verifiedEmail = normalizeEmail(requireUserEmail(user));
+  const expectedEmail = normalizeEmailChangeTarget(input);
+
+  if (verifiedEmail !== expectedEmail) {
+    throw new ApiError(
+      409,
+      'New email has not been verified yet.'
+    );
+  }
+
+  const profile = await updateProfileEmail(
+    user.id,
+    verifiedEmail
+  );
+  await revokeSupabaseSessions(accessToken, 'global');
+
+  return {
+    status: 'changed',
+    email: verifiedEmail,
+    profile,
+    sessionsRevoked: true,
+    requiresSignIn: true
+  };
+}
+
+export async function changePassword(
+  accessToken: string,
+  input: PasswordChangeInput
+) {
+  const body = normalizeSensitiveInput(input);
+  const newPassword = normalizePassword(
+    body.newPassword,
+    'newPassword'
+  );
+  const { session } = await requirePasswordReauthentication(
+    accessToken,
+    body
+  );
+
+  await updateSupabaseUser(session.access_token, {
+    password: newPassword
+  });
+  await revokeSupabaseSessions(session.access_token, 'global');
+
+  return {
+    passwordUpdated: true,
+    sessionsRevoked: true,
+    requiresSignIn: true
+  };
+}
+
+export async function deleteAccount(
+  accessToken: string,
+  input: AccountDeletionInput
+) {
+  const body = normalizeSensitiveInput(input);
+  const user = await getSupabaseUserFromAccessToken(accessToken);
+  const email = requireUserEmail(user);
+
+  normalizeAccountConfirmation(body.confirmation, email);
+
+  const session = await signInSupabaseWithPassword(
+    email,
+    normalizeCurrentPassword(body.currentPassword)
+  );
+
+  if (session.user.id !== user.id) {
+    throw new ApiError(
+      401,
+      'Current password did not re-authenticate this account.'
+    );
+  }
+
+  await revokeSupabaseSessions(session.access_token, 'global');
+  await deleteSupabaseAuthUser(user.id);
+  const cleanup = await anonymizeProfileForAccountDeletion(
+    user.id
+  );
+
+  return {
+    accountDeleted: true,
+    sessionsRevoked: true,
+    ...cleanup
   };
 }

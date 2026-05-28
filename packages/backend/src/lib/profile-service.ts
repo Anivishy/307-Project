@@ -453,3 +453,75 @@ export async function updateProfileIdentity(
     throw error;
   }
 }
+
+export async function updateProfileEmail(
+  profileId: string,
+  email: string
+) {
+  assertUuid(profileId, 'authenticated user id');
+
+  try {
+    const profile = await prisma.profile.update({
+      where: { id: profileId },
+      data: { email: normalizeEmail(email) }
+    });
+
+    return serializeProfile(profile);
+  } catch (error) {
+    if (isPrismaError(error, 'P2002')) {
+      throw new ApiError(
+        409,
+        'A profile with that email already exists.'
+      );
+    }
+
+    if (isPrismaError(error, 'P2025')) {
+      throw new ApiError(404, 'Profile not found.');
+    }
+
+    throw error;
+  }
+}
+
+export async function anonymizeProfileForAccountDeletion(
+  profileId: string
+) {
+  assertUuid(profileId, 'authenticated user id');
+
+  try {
+    await prisma.$transaction([
+      prisma.ingredient.deleteMany({
+        where: { ownerId: profileId }
+      }),
+      prisma.groupMember.deleteMany({
+        where: { profileId }
+      }),
+      prisma.profile.update({
+        where: { id: profileId },
+        data: {
+          email: `deleted-${profileId}@deleted.local`,
+          displayName: 'Deleted account',
+          profilePictureUrl: null,
+          profilePictureStorageRef: null,
+          profilePictureContentType: null,
+          profilePictureSizeBytes: null,
+          allergies: [],
+          medicalRestrictions: [],
+          neverIncludeIngredientIds: []
+        }
+      })
+    ]);
+
+    return {
+      profileId,
+      membershipsRemoved: true,
+      profileAnonymized: true
+    };
+  } catch (error) {
+    if (isPrismaError(error, 'P2025')) {
+      throw new ApiError(404, 'Profile not found.');
+    }
+
+    throw error;
+  }
+}
