@@ -1,5 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { findOrCreateProfileForEmail } from './profile-service';
+import { PATCH as patchProfileMe } from '../app/api/profiles/me/route';
+import {
+  findOrCreateProfileForEmail,
+  PROFILE_PICTURE_MAX_SIZE_BYTES,
+  updateProfileIdentity
+} from './profile-service';
 
 const { prismaMock } = vi.hoisted(() => ({
   prismaMock: {
@@ -24,6 +29,10 @@ function profileRecord(overrides = {}) {
     id: oldProfileId,
     email: 'kartik@example.com',
     displayName: 'Kartik',
+    profilePictureUrl: null,
+    profilePictureStorageRef: null,
+    profilePictureContentType: null,
+    profilePictureSizeBytes: null,
     allergies: [],
     medicalRestrictions: [],
     neverIncludeIngredientIds: [],
@@ -60,5 +69,134 @@ describe('profile service auth reconciliation', () => {
       id: supabaseUserId,
       email: 'kartik@example.com'
     });
+  });
+});
+
+describe('profile service identity updates', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('updates display name and profile picture metadata', async () => {
+    prismaMock.profile.update.mockResolvedValue(
+      profileRecord({
+        id: supabaseUserId,
+        displayName: 'Avery Cook',
+        profilePictureUrl:
+          'https://cdn.example.com/avatars/avery.png',
+        profilePictureContentType: 'image/png',
+        profilePictureSizeBytes: 1024
+      })
+    );
+
+    const profile = await updateProfileIdentity(
+      supabaseUserId,
+      {
+        displayName: ' Avery Cook ',
+        profilePicture: {
+          url: 'https://cdn.example.com/avatars/avery.png',
+          contentType: 'IMAGE/PNG',
+          sizeBytes: '1024'
+        }
+      }
+    );
+
+    expect(prismaMock.profile.update).toHaveBeenCalledWith({
+      where: { id: supabaseUserId },
+      data: {
+        displayName: 'Avery Cook',
+        profilePictureUrl:
+          'https://cdn.example.com/avatars/avery.png',
+        profilePictureStorageRef: null,
+        profilePictureContentType: 'image/png',
+        profilePictureSizeBytes: 1024
+      }
+    });
+    expect(profile).toMatchObject({
+      id: supabaseUserId,
+      displayName: 'Avery Cook',
+      profilePictureUrl:
+        'https://cdn.example.com/avatars/avery.png',
+      profilePictureContentType: 'image/png',
+      profilePictureSizeBytes: 1024
+    });
+  });
+
+  it('clears profile picture fields when profilePicture is null', async () => {
+    prismaMock.profile.update.mockResolvedValue(
+      profileRecord({
+        id: supabaseUserId,
+        profilePictureUrl: null,
+        profilePictureStorageRef: null,
+        profilePictureContentType: null,
+        profilePictureSizeBytes: null
+      })
+    );
+
+    await updateProfileIdentity(supabaseUserId, {
+      profilePicture: null
+    });
+
+    expect(prismaMock.profile.update).toHaveBeenCalledWith({
+      where: { id: supabaseUserId },
+      data: {
+        profilePictureUrl: null,
+        profilePictureStorageRef: null,
+        profilePictureContentType: null,
+        profilePictureSizeBytes: null
+      }
+    });
+  });
+
+  it('rejects unsupported profile picture file types before saving', async () => {
+    await expect(
+      updateProfileIdentity(supabaseUserId, {
+        profilePicture: {
+          url: 'https://cdn.example.com/avatars/avery.svg',
+          contentType: 'image/svg+xml',
+          sizeBytes: 1024
+        }
+      })
+    ).rejects.toMatchObject({
+      statusCode: 400,
+      message:
+        'profilePicture.contentType must be one of image/jpeg, image/png, image/webp, image/gif.'
+    });
+
+    expect(prismaMock.profile.update).not.toHaveBeenCalled();
+  });
+
+  it('rejects oversized profile pictures before saving', async () => {
+    await expect(
+      updateProfileIdentity(supabaseUserId, {
+        profilePicture: {
+          storageRef: 'avatars/avery.png',
+          contentType: 'image/png',
+          sizeBytes: PROFILE_PICTURE_MAX_SIZE_BYTES + 1
+        }
+      })
+    ).rejects.toMatchObject({
+      statusCode: 400,
+      message: `profilePicture.sizeBytes must be between 1 and ${PROFILE_PICTURE_MAX_SIZE_BYTES}.`
+    });
+
+    expect(prismaMock.profile.update).not.toHaveBeenCalled();
+  });
+
+  it('rejects unauthenticated profile update requests', async () => {
+    const response = await patchProfileMe(
+      new Request('http://localhost/api/profiles/me', {
+        method: 'PATCH',
+        body: JSON.stringify({ displayName: 'Avery Cook' })
+      })
+    );
+
+    expect(response.status).toBe(401);
+    await expect(response.json()).resolves.toMatchObject({
+      error: {
+        message: 'Missing Authorization bearer token.'
+      }
+    });
+    expect(prismaMock.profile.update).not.toHaveBeenCalled();
   });
 });

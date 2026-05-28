@@ -185,6 +185,8 @@ export async function getGroupMembers(
   return group.members.map((m) => ({
     profileId: m.profileId,
     displayName: m.profile.displayName,
+    profilePictureUrl: m.profile.profilePictureUrl,
+    profilePictureStorageRef: m.profile.profilePictureStorageRef,
     email: m.profile.email,
     role: roleLabel(m.role),
     joinedAt: m.joinedAt.toISOString(),

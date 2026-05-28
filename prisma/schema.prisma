@@ -32,6 +32,10 @@ model Profile {
   id                        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   email                     String   @unique @db.VarChar(320)
   displayName               String?  @map("display_name") @db.VarChar(120)
+  profilePictureUrl         String?  @map("profile_picture_url") @db.VarChar(2048)
+  profilePictureStorageRef  String?  @map("profile_picture_storage_ref") @db.VarChar(512)
+  profilePictureContentType String?  @map("profile_picture_content_type") @db.VarChar(80)
+  profilePictureSizeBytes   Int?     @map("profile_picture_size_bytes")
   allergies                 String[] @default([])
   medicalRestrictions       String[] @default([]) @map("medical_restrictions")
   neverIncludeIngredientIds String[] @default([]) @map("never_include_ingredient_ids")

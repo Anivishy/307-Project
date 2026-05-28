@@ -128,6 +128,8 @@ function serializeSession(
     profileId: profile.id,
     email: profile.email,
     displayName: profile.displayName,
+    profilePictureUrl: profile.profilePictureUrl,
+    profilePictureStorageRef: profile.profilePictureStorageRef,
     accessToken: session.access_token,
     refreshToken: session.refresh_token,
     tokenType: session.token_type,
