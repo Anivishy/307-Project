@@ -3,8 +3,10 @@ import {
   getDefaultStaplesPreset,
   getIngredientCatalog,
   getBundleTemplates,
+  getGroupActivityLog,
   getGroupPantry,
   getGroupRecord,
+  recordActivityLog,
   replaceActiveBundle,
   resolveIngredientIds,
   type BundleReservation,
@@ -108,13 +110,19 @@ function getViewerContext(
   };
 }
 
-function normalizeVersionToken(value: unknown, fieldName: string) {
+function normalizeVersionToken(
+  value: unknown,
+  fieldName: string
+) {
   if (
     typeof value !== 'number' ||
     !Number.isInteger(value) ||
     value < 0
   ) {
-    throw new ApiError(400, `${fieldName} must be a non-negative integer.`);
+    throw new ApiError(
+      400,
+      `${fieldName} must be a non-negative integer.`
+    );
   }
 
   return value;
@@ -138,7 +146,8 @@ function buildReservations(
 
   for (const ingredient of candidate.ingredientList) {
     const allocations =
-      candidate.contributorMapping[ingredient.ingredientId] ?? [];
+      candidate.contributorMapping[ingredient.ingredientId] ??
+      [];
 
     for (const allocation of allocations) {
       reservations.push({
@@ -147,6 +156,8 @@ function buildReservations(
         name: ingredient.name,
         quantity: allocation.quantity,
         unit: allocation.unit,
+        sourceQuantity: allocation.sourceQuantity,
+        sourceUnit: allocation.sourceUnit,
         sourceUserId: allocation.userId,
         sourceName: allocation.userName
       });
@@ -161,6 +172,14 @@ export function readGroupSettings(
   userId: string
 ) {
   return getViewerContext(groupId, userId);
+}
+
+export function readGroupActivity(
+  groupId: string,
+  userId: string
+) {
+  getViewerContext(groupId, userId);
+  return getGroupActivityLog(groupId).slice(0, 25);
 }
 
 export function saveGroupSettings(
@@ -248,7 +267,10 @@ export function selectBundleCandidate(
   const context = getViewerContext(groupId, userId);
 
   if (context.viewerRole !== 'admin') {
-    throw new ApiError(403, 'Only admins can select the active bundle.');
+    throw new ApiError(
+      403,
+      'Only admins can select the active bundle.'
+    );
   }
 
   const group = getGroupRecord(groupId);
@@ -287,7 +309,9 @@ export function selectBundleCandidate(
     getGroupPantry(groupId),
     memberConstraints
   );
-  const candidate = candidateSet.candidates.find((item) => item.id === bundleId);
+  const candidate = candidateSet.candidates.find(
+    (item) => item.id === bundleId
+  );
 
   if (!candidate) {
     throw new ApiError(
@@ -306,6 +330,13 @@ export function selectBundleCandidate(
     throw new ApiError(404, 'Group not found.');
   }
 
+  recordActivityLog(groupId, userId, 'bundleSelection', {
+    bundleId,
+    bundleTitle: candidate.title,
+    releasedBundleId: result.releasedBundleId,
+    reservationCount: result.group.activeReservations.length
+  });
+
   return {
     groupId,
     selectedBundleId: bundleId,
@@ -314,6 +345,10 @@ export function selectBundleCandidate(
     pantrySnapshotVersion: result.group.pantrySnapshotVersion,
     activeBundleVersion: result.group.activeBundleVersion,
     reservationCount: result.group.activeReservations.length,
+    reservations: result.appliedReservations,
+    missingIngredients: candidate.missingIngredients,
+    unsupportedUnitConversions:
+      candidate.unsupportedUnitConversions,
     forced: isForced
   };
 }

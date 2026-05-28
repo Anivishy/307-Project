@@ -28,6 +28,12 @@ enum MealCategory {
   OTHER
 }
 
+enum ActivityEventType {
+  bundleSelection
+  adminPantryEdit
+  softPreferenceOverride
+}
+
 model Profile {
   id                        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   email                     String   @unique @db.VarChar(320)
@@ -43,6 +49,7 @@ model Profile {
   groupMemberships             GroupMember[]
   menuRequests                 MenuRequest[]
   contributedRecipeIngredients RecipeIngredient[] @relation("RecipeIngredientSource")
+  activityLogEntries           ActivityLogEntry[] @relation("ActivityActor")
 
   @@map("profiles")
 }
@@ -53,17 +60,36 @@ model Ingredient {
   canonicalIngredientId String?  @map("canonical_ingredient_id") @db.VarChar(80)
   name                  String   @db.VarChar(120)
   quantity              Decimal? @db.Decimal(10, 2)
+  availableQuantity     Decimal? @map("available_quantity") @db.Decimal(10, 2)
   unit                  String?  @db.VarChar(40)
   notes                 String?  @db.Text
+  lastUpdatedBy         String?  @map("last_updated_by") @db.VarChar(80)
+  lastUpdatedAt         DateTime? @map("last_updated_at") @db.Timestamptz(6)
   createdAt             DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt             DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   owner Profile @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  reservations InventoryReservation[]
 
   @@unique([ownerId, name])
   @@index([canonicalIngredientId])
   @@index([ownerId])
   @@map("ingredients")
+}
+
+model InventoryReservation {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  pantryItemId     String   @map("pantry_item_id") @db.Uuid
+  bundleId         String   @map("bundle_id") @db.VarChar(120)
+  reservedQuantity Decimal  @map("reserved_quantity") @db.Decimal(10, 2)
+  unit             String   @db.VarChar(40)
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  pantryItem Ingredient @relation(fields: [pantryItemId], references: [id], onDelete: Cascade)
+
+  @@index([pantryItemId])
+  @@index([bundleId])
+  @@map("inventory_reservations")
 }
 
 model Group {
@@ -85,6 +111,7 @@ model Group {
   members      GroupMember[]
   menuRequests MenuRequest[]
   menus        Menu[]
+  activityLogEntries ActivityLogEntry[]
 
   @@index([ownerId])
   @@map("groups")
@@ -103,6 +130,22 @@ model GroupMember {
   @@unique([groupId, profileId])
   @@index([profileId])
   @@map("group_members")
+}
+
+model ActivityLogEntry {
+  id        String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  groupId   String            @map("group_id") @db.Uuid
+  actorId   String            @map("actor_id") @db.Uuid
+  eventType ActivityEventType @map("event_type")
+  payload   Json
+  createdAt DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  group Group   @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  actor Profile @relation("ActivityActor", fields: [actorId], references: [id], onDelete: Restrict)
+
+  @@index([groupId, createdAt])
+  @@index([actorId])
+  @@map("activity_log_entries")
 }
 
 model MenuRequest {

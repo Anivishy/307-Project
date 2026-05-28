@@ -1,7 +1,9 @@
 import { apiFetch, readJson } from './api.js';
 
 export function getGroupPreview(inviteCode) {
-  return fetch(`/api/groups/invite/${encodeURIComponent(inviteCode)}`).then(readJson);
+  return fetch(
+    `/api/groups/invite/${encodeURIComponent(inviteCode)}`
+  ).then(readJson);
 }
 
 export function getGroups() {
@@ -39,6 +41,10 @@ export function updateGroupSettings(groupId, updates) {
     method: 'PATCH',
     body: JSON.stringify(updates)
   });
+}
+
+export function getGroupActivity(groupId) {
+  return apiFetch(`/api/groups/${groupId}/activity`);
 }
 
 export function getBundleCandidates(groupId) {

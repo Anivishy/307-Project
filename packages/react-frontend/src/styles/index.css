@@ -2039,7 +2039,6 @@ img {
   .detail-save-button {
     top: 28px;
   }
-
 }
 
 @media (max-width: 1024px) {
@@ -2492,7 +2491,9 @@ body {
   border-bottom: 2px solid transparent;
   margin-bottom: -1px;
   border-radius: 0;
-  transition: color 0.15s, border-color 0.15s;
+  transition:
+    color 0.15s,
+    border-color 0.15s;
 }
 
 .gd-tab:hover {
@@ -2575,7 +2576,9 @@ body {
   border: 1px solid var(--color-line);
   border-radius: 999px;
   background: var(--color-surface-strong);
-  transition: background 0.2s ease, border-color 0.2s ease;
+  transition:
+    background 0.2s ease,
+    border-color 0.2s ease;
 }
 
 .toggle-switch__thumb {
@@ -2583,7 +2586,9 @@ body {
   height: 28px;
   border-radius: 50%;
   background: var(--color-text);
-  transition: transform 0.2s ease, background 0.2s ease;
+  transition:
+    transform 0.2s ease,
+    background 0.2s ease;
 }
 
 .toggle-switch.is-active .toggle-switch__track {
@@ -2701,8 +2706,8 @@ body {
   grid-template-columns: 48px 1fr;
   grid-template-rows: auto auto;
   grid-template-areas:
-    "avatar info"
-    "pantry pantry";
+    'avatar info'
+    'pantry pantry';
   gap: 12px;
   padding: 16px;
   border-radius: 20px;
@@ -2848,11 +2853,51 @@ body {
   color: var(--color-muted);
 }
 
+.pantry-update-label {
+  font-size: 0.72rem;
+  color: var(--color-green);
+}
+
 .combined-pantry-row__qty {
   font-size: 0.82rem;
   color: var(--color-muted);
   white-space: nowrap;
   flex-shrink: 0;
+}
+
+.activity-feed {
+  display: grid;
+  gap: 8px;
+}
+
+.activity-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: var(--color-surface);
+}
+
+.activity-row__type {
+  border: 1px solid rgba(156, 227, 106, 0.25);
+  border-radius: 999px;
+  padding: 5px 8px;
+  color: var(--color-green);
+  font-size: 0.68rem;
+  font-weight: 900;
+}
+
+.activity-row strong {
+  color: var(--color-text);
+  font-size: 0.9rem;
+}
+
+.activity-row p {
+  margin: 4px 0 0;
+  color: var(--color-muted);
+  font-size: 0.78rem;
 }
 
 /* Invite code UI */

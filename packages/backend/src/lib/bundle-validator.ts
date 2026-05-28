@@ -11,6 +11,7 @@ import type {
   UserConstraints
 } from './constraints/types';
 import { validateHardConstraints } from './constraints/validator';
+import { convertQuantity } from './unit-conversion';
 
 // Candidate validation for US7/US8: apply group missing-ingredient and staples settings
 // before returning bundles to the UI.
@@ -26,6 +27,16 @@ export type ContributorAllocation = {
   userName: string;
   quantity: number;
   unit: string;
+  sourceQuantity: number;
+  sourceUnit: string;
+};
+
+export type UnsupportedUnitConversion = {
+  ingredientId: string;
+  name: string;
+  requestedUnit: string;
+  sourceUnit: string;
+  ownerName: string;
 };
 
 export type ValidationReport = {
@@ -37,12 +48,14 @@ export type ValidationReport = {
     | 'missing_ingredients_and_hard_constraints';
   missingIngredients: MissingIngredientDisclosure[];
   hardConstraintViolations: ConstraintViolation[];
+  unsupportedUnitConversions: UnsupportedUnitConversion[];
 };
 
 export type ValidatedBundleCandidate = BundleTemplate & {
   contributorMapping: Record<string, ContributorAllocation[]>;
   missingIngredients: MissingIngredientDisclosure[];
   hardConstraintViolations: ConstraintViolation[];
+  unsupportedUnitConversions: UnsupportedUnitConversion[];
   assumedStaples: Array<{ ingredientId: string; name: string }>;
   validationReport: ValidationReport;
 };
@@ -91,7 +104,9 @@ function buildContributorMapping(
         userId: 'group-staples',
         userName: 'Group staples',
         quantity: ingredient.quantity,
-        unit: ingredient.unit
+        unit: ingredient.unit,
+        sourceQuantity: ingredient.quantity,
+        sourceUnit: ingredient.unit
       }
     ];
   }
@@ -100,7 +115,11 @@ function buildContributorMapping(
     .filter(
       (item) =>
         item.ingredientId === ingredient.ingredientId &&
-        item.unit === ingredient.unit
+        convertQuantity(
+          item.quantity,
+          item.unit,
+          ingredient.unit
+        ) !== null
     )
     .sort((left, right) =>
       left.ownerName.localeCompare(right.ownerName)
@@ -114,15 +133,29 @@ function buildContributorMapping(
       break;
     }
 
+    const availableQuantity =
+      convertQuantity(
+        item.quantity,
+        item.unit,
+        ingredient.unit
+      ) ?? 0;
     const allocationQuantity = Math.min(
-      item.quantity,
+      availableQuantity,
       remaining
     );
+    const sourceQuantity =
+      convertQuantity(
+        allocationQuantity,
+        ingredient.unit,
+        item.unit
+      ) ?? allocationQuantity;
     allocations.push({
       userId: item.ownerUserId,
       userName: item.ownerName,
       quantity: allocationQuantity,
-      unit: item.unit
+      unit: ingredient.unit,
+      sourceQuantity,
+      sourceUnit: item.unit
     });
     remaining -= allocationQuantity;
   }
@@ -168,13 +201,47 @@ function validateBundleCandidate(
         .filter(
           (item) =>
             item.ingredientId === ingredient.ingredientId &&
-            item.unit === ingredient.unit
+            convertQuantity(
+              item.quantity,
+              item.unit,
+              ingredient.unit
+            ) !== null
         )
-        .reduce((sum, item) => sum + item.quantity, 0);
+        .reduce(
+          (sum, item) =>
+            sum +
+            (convertQuantity(
+              item.quantity,
+              item.unit,
+              ingredient.unit
+            ) ?? 0),
+          0
+        );
 
       return matchingQuantity < ingredient.quantity;
     })
     .map(buildIngredientDisclosure);
+
+  const unsupportedUnitConversions =
+    template.ingredientList.flatMap((ingredient) =>
+      pantry
+        .filter(
+          (item) =>
+            item.ingredientId === ingredient.ingredientId &&
+            convertQuantity(
+              item.quantity,
+              item.unit,
+              ingredient.unit
+            ) === null
+        )
+        .map((item) => ({
+          ingredientId: ingredient.ingredientId,
+          name: ingredient.name,
+          requestedUnit: ingredient.unit,
+          sourceUnit: item.unit,
+          ownerName: item.ownerName
+        }))
+    );
 
   // Map each actual course from the template so violation reports name the correct course
   // rather than attributing everything to a synthetic bundle-level course.
@@ -184,10 +251,12 @@ function validateBundleCandidate(
       courses: template.courses.map((course, index) => ({
         id: `${template.id}-course-${index}`,
         name: course.title,
-        ingredients: template.ingredientList.map((ingredient) => ({
-          id: ingredient.ingredientId,
-          name: ingredient.name
-        }))
+        ingredients: template.ingredientList.map(
+          (ingredient) => ({
+            id: ingredient.ingredientId,
+            name: ingredient.name
+          })
+        )
       }))
     },
     userConstraints
@@ -211,7 +280,8 @@ function validateBundleCandidate(
             ? 'missing_ingredients'
             : 'ok',
     missingIngredients,
-    hardConstraintViolations: hardConstraintResult.violations
+    hardConstraintViolations: hardConstraintResult.violations,
+    unsupportedUnitConversions
   };
 
   const candidate: ValidatedBundleCandidate = {
@@ -219,6 +289,7 @@ function validateBundleCandidate(
     contributorMapping,
     missingIngredients,
     hardConstraintViolations: hardConstraintResult.violations,
+    unsupportedUnitConversions,
     assumedStaples,
     validationReport,
     rationale: [
