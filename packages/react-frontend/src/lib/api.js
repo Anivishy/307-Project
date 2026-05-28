@@ -18,11 +18,17 @@ export async function readJson(response) {
   }
 
   if (!response.ok) {
-    throw new Error(
+    const requestError = new Error(
       payload?.error?.message ??
         payload?.error ??
         'Request failed.'
     );
+
+    requestError.status = response.status;
+    requestError.code = payload?.error?.code;
+    requestError.details = payload?.error?.details;
+
+    throw requestError;
   }
 
   return payload;

@@ -69,6 +69,10 @@ export type BundleReservation = {
   sourceName: string;
 };
 
+type ReplaceActiveBundleOptions = {
+  simulateFailureAfterRelease?: boolean;
+};
+
 export const DEMO_ADMIN_USER_ID = "user-admin-1";
 export const DEMO_MEMBER_USER_ID = "user-member-1";
 
@@ -358,6 +362,7 @@ export function replaceActiveBundle(
   groupId: string,
   bundleId: string,
   activeReservations: BundleReservation[],
+  options: ReplaceActiveBundleOptions = {},
 ) {
   const group = demoState.groups.get(groupId);
 
@@ -365,14 +370,32 @@ export function replaceActiveBundle(
     return undefined;
   }
 
-  const releasedBundleId = group.selectedBundleId;
-  group.selectedBundleId = bundleId;
-  group.activeReservations = structuredClone(activeReservations);
-  group.activeBundleVersion += 1;
-  group.updatedAt = new Date().toISOString();
+  const previousGroup = structuredClone(group);
 
-  return {
-    group: structuredClone(group),
-    releasedBundleId,
-  };
+  try {
+    const releasedBundleId = group.selectedBundleId;
+    const releasedReservationCount = group.activeReservations.length;
+
+    group.selectedBundleId = null;
+    group.activeReservations = [];
+
+    if (options.simulateFailureAfterRelease) {
+      throw new Error("Simulated bundle replacement failure.");
+    }
+
+    group.selectedBundleId = bundleId;
+    group.activeReservations = structuredClone(activeReservations);
+    group.activeBundleVersion += 1;
+    group.updatedAt = new Date().toISOString();
+
+    return {
+      group: structuredClone(group),
+      releasedBundleId,
+      releasedReservationCount,
+      appliedReservationCount: group.activeReservations.length,
+    };
+  } catch (error) {
+    demoState.groups.set(groupId, previousGroup);
+    throw error;
+  }
 }

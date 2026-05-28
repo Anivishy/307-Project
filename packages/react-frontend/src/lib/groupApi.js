@@ -54,3 +54,7 @@ export function selectBundleCandidate(groupId, selection) {
     }
   );
 }
+
+export function isStaleCandidateError(error) {
+  return error?.code === 'staleCandidate';
+}

@@ -128,6 +128,28 @@ function normalizeBundleId(value: unknown) {
   return value.trim();
 }
 
+function buildStaleCandidateDetails(
+  submittedPantrySnapshotVersion: number,
+  submittedActiveBundleVersion: number,
+  currentPantrySnapshotVersion: number,
+  currentActiveBundleVersion: number
+) {
+  return {
+    submitted: {
+      pantrySnapshotVersion: submittedPantrySnapshotVersion,
+      activeBundleVersion: submittedActiveBundleVersion
+    },
+    current: {
+      pantrySnapshotVersion: currentPantrySnapshotVersion,
+      activeBundleVersion: currentActiveBundleVersion
+    },
+    stalePantrySnapshot:
+      submittedPantrySnapshotVersion !== currentPantrySnapshotVersion,
+    staleActiveBundle:
+      submittedActiveBundleVersion !== currentActiveBundleVersion
+  };
+}
+
 function buildReservations(
   bundleId: string,
   candidate: ReturnType<
@@ -274,7 +296,16 @@ export function selectBundleCandidate(
   if (isStale && !isForced) {
     throw new ApiError(
       409,
-      'Candidate set is stale. Refresh or explicitly confirm before selecting.'
+      'Candidate set is stale. Refresh or explicitly confirm before selecting.',
+      {
+        code: 'staleCandidate',
+        details: buildStaleCandidateDetails(
+          pantrySnapshotVersion,
+          activeBundleVersion,
+          group.pantrySnapshotVersion,
+          group.activeBundleVersion
+        )
+      }
     );
   }
 
@@ -314,6 +345,8 @@ export function selectBundleCandidate(
     pantrySnapshotVersion: result.group.pantrySnapshotVersion,
     activeBundleVersion: result.group.activeBundleVersion,
     reservationCount: result.group.activeReservations.length,
+    releasedReservationCount: result.releasedReservationCount,
+    appliedReservationCount: result.appliedReservationCount,
     forced: isForced
   };
 }

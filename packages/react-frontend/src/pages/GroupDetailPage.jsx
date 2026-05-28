@@ -1,8 +1,10 @@
 import {
+  AlertTriangle,
   Check,
   Copy,
   Package,
   Plus,
+  RefreshCw,
   SlidersHorizontal,
   UtensilsCrossed,
   Users,
@@ -12,9 +14,12 @@ import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { StatusMessage } from '../components/StatusMessage.jsx';
 import {
+  getBundleCandidates,
   getGroup,
   getGroupMembers,
   getGroupSettings,
+  isStaleCandidateError,
+  selectBundleCandidate,
   updateGroupSettings
 } from '../lib/groupApi.js';
 
@@ -66,6 +71,12 @@ export function GroupDetailPage() {
   const [settingsNotice, setSettingsNotice] = useState('');
   const [customStaplesDraft, setCustomStaplesDraft] = useState([]);
   const [stapleQuery, setStapleQuery] = useState('');
+  const [candidateSet, setCandidateSet] = useState(null);
+  const [isCandidatesLoading, setIsCandidatesLoading] = useState(false);
+  const [isSelectingBundle, setIsSelectingBundle] = useState(false);
+  const [candidatesError, setCandidatesError] = useState('');
+  const [candidatesNotice, setCandidatesNotice] = useState('');
+  const [staleSelection, setStaleSelection] = useState(null);
 
   useEffect(() => {
     if (!groupId) return undefined;
@@ -102,6 +113,10 @@ export function GroupDetailPage() {
     setStapleQuery('');
     setSettingsError('');
     setSettingsNotice('');
+    setCandidateSet(null);
+    setCandidatesError('');
+    setCandidatesNotice('');
+    setStaleSelection(null);
   }, [groupId]);
 
   const groupName = groupInfo?.name ?? '…';
@@ -140,6 +155,137 @@ export function GroupDetailPage() {
     void loadGroupSettings();
     return () => { isCancelled = true; };
   }, [activeTab, groupId, isAdmin, settings]);
+
+  useEffect(() => {
+    if (!groupId || activeTab !== 'recipes' || !isAdmin || candidateSet) {
+      return undefined;
+    }
+
+    let isCancelled = false;
+
+    async function loadCandidates() {
+      setIsCandidatesLoading(true);
+      setCandidatesError('');
+
+      try {
+        const payload = await getBundleCandidates(groupId);
+        if (isCancelled) return;
+        setCandidateSet(payload);
+      } catch (error) {
+        if (!isCancelled) {
+          setCandidatesError(
+            error instanceof Error
+              ? error.message
+              : 'Unable to load bundle candidates.'
+          );
+        }
+      } finally {
+        if (!isCancelled) setIsCandidatesLoading(false);
+      }
+    }
+
+    void loadCandidates();
+    return () => { isCancelled = true; };
+  }, [activeTab, candidateSet, groupId, isAdmin]);
+
+  async function refreshBundleCandidates() {
+    if (!groupId) return;
+
+    setIsCandidatesLoading(true);
+    setCandidatesError('');
+    setCandidatesNotice('');
+    setStaleSelection(null);
+
+    try {
+      const payload = await getBundleCandidates(groupId);
+      setCandidateSet(payload);
+    } catch (error) {
+      setCandidatesError(
+        error instanceof Error
+          ? error.message
+          : 'Unable to refresh bundle candidates.'
+      );
+    } finally {
+      setIsCandidatesLoading(false);
+    }
+  }
+
+  function updateCandidateSetAfterSelection(result) {
+    setCandidateSet((current) => {
+      if (!current) return current;
+
+      return {
+        ...current,
+        selectedBundleId: result.selectedBundleId,
+        pantrySnapshotVersion: result.pantrySnapshotVersion,
+        activeBundleVersion: result.activeBundleVersion,
+        candidates: (current.candidates ?? []).map((candidate) => ({
+          ...candidate,
+          pantrySnapshotVersion: result.pantrySnapshotVersion,
+          activeBundleVersion: result.activeBundleVersion,
+          isSelected: candidate.id === result.selectedBundleId
+        }))
+      };
+    });
+  }
+
+  async function submitBundleSelection(candidate, selection, { force = false } = {}) {
+    if (!groupId) return;
+
+    setIsSelectingBundle(true);
+    setCandidatesError('');
+    setCandidatesNotice('');
+
+    try {
+      const result = await selectBundleCandidate(groupId, {
+        ...selection,
+        ...(force ? { force: true } : {})
+      });
+
+      updateCandidateSetAfterSelection(result);
+      setStaleSelection(null);
+      setCandidatesNotice(`${result.selectedBundleTitle ?? candidate.title} selected.`);
+    } catch (error) {
+      if (!force && isStaleCandidateError(error)) {
+        setStaleSelection({
+          candidate,
+          selection,
+          message:
+            error instanceof Error
+              ? error.message
+              : 'This candidate set is stale.',
+          details: error.details
+        });
+      } else {
+        setCandidatesError(
+          error instanceof Error
+            ? error.message
+            : 'Unable to select this bundle.'
+        );
+      }
+    } finally {
+      setIsSelectingBundle(false);
+    }
+  }
+
+  function handleSelectBundle(candidate) {
+    if (!candidateSet) return;
+
+    void submitBundleSelection(candidate, {
+      bundleId: candidate.id,
+      pantrySnapshotVersion: candidateSet.pantrySnapshotVersion,
+      activeBundleVersion: candidateSet.activeBundleVersion
+    });
+  }
+
+  function handleProceedWithStaleSelection() {
+    if (!staleSelection) return;
+    void submitBundleSelection(
+      staleSelection.candidate,
+      staleSelection.selection,
+      { force: true }
+    );
+  }
 
   async function saveSettingsPatch(updates, successMessage) {
     if (!groupId) return;
@@ -410,10 +556,151 @@ export function GroupDetailPage() {
         {/* RECIPES TAB */}
         {activeTab === 'recipes' && (
           <section className="gd-tab-content">
-            <div className="gd-empty-tab">
-              <UtensilsCrossed size={36} style={{ opacity: 0.3 }} />
-              <p>Recipes coming soon.</p>
-            </div>
+            {isAdmin ? (
+              <>
+                <div className="section-heading bundle-candidate-heading">
+                  <h2>Bundle Candidates</h2>
+                  <button
+                    className="button button--dark"
+                    type="button"
+                    disabled={isCandidatesLoading || isSelectingBundle}
+                    onClick={refreshBundleCandidates}>
+                    <RefreshCw size={16} /> Refresh
+                  </button>
+                </div>
+
+                {isCandidatesLoading ? (
+                  <StatusMessage
+                    type="loading"
+                    title="Loading candidates"
+                    message="Checking current pantry and bundle versions."
+                  />
+                ) : candidatesError ? (
+                  <StatusMessage
+                    type="error"
+                    title="Candidates unavailable"
+                    message={candidatesError}
+                  />
+                ) : candidateSet?.candidates?.length > 0 ? (
+                  <div className="bundle-candidate-list">
+                    {candidateSet.candidates.map((candidate) => (
+                      <article
+                        className={`bundle-candidate-card surface-card ${
+                          candidate.isSelected ? 'is-selected' : ''
+                        }`}
+                        key={candidate.id}>
+                        <div className="bundle-candidate-card__header">
+                          <div>
+                            <h3>{candidate.title}</h3>
+                            {candidate.rationale && (
+                              <p>{candidate.rationale}</p>
+                            )}
+                          </div>
+                          {candidate.isSelected && (
+                            <span className="settings-badge">Selected</span>
+                          )}
+                        </div>
+
+                        <div className="bundle-candidate-card__meta">
+                          {(candidate.courses ?? []).map((course) => (
+                            <span key={`${candidate.id}-${course.type}-${course.title}`}>
+                              {course.title}
+                            </span>
+                          ))}
+                        </div>
+
+                        <div className="bundle-candidate-card__ingredients">
+                          {(candidate.ingredientList ?? []).map((ingredient) => (
+                            <span key={`${candidate.id}-${ingredient.ingredientId}`}>
+                              {ingredient.name} · {ingredient.quantity} {ingredient.unit}
+                            </span>
+                          ))}
+                        </div>
+
+                        <button
+                          className="button"
+                          type="button"
+                          disabled={isSelectingBundle || candidate.isSelected}
+                          onClick={() => handleSelectBundle(candidate)}>
+                          {candidate.isSelected ? (
+                            <Check size={18} />
+                          ) : (
+                            <UtensilsCrossed size={18} />
+                          )}
+                          {candidate.isSelected ? 'Selected' : 'Select bundle'}
+                        </button>
+                      </article>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="gd-empty-tab">
+                    <UtensilsCrossed size={36} style={{ opacity: 0.3 }} />
+                    <p>No bundle candidates available.</p>
+                  </div>
+                )}
+
+                {candidatesNotice && (
+                  <p className="settings-status settings-status--success">
+                    {candidatesNotice}
+                  </p>
+                )}
+
+                {staleSelection && (
+                  <div className="modal-backdrop">
+                    <section
+                      aria-labelledby="stale-candidate-title"
+                      aria-modal="true"
+                      className="stale-candidate-dialog surface-card"
+                      role="dialog">
+                      <div className="stale-candidate-dialog__header">
+                        <AlertTriangle size={22} />
+                        <h2 id="stale-candidate-title">Stale Candidate Set</h2>
+                      </div>
+                      <p>
+                        Pantry or active bundle data changed since this candidate list
+                        was generated.
+                      </p>
+                      <p className="settings-note">
+                        {staleSelection.message}
+                      </p>
+                      <div className="stale-candidate-dialog__versions">
+                        <span>
+                          Pantry {staleSelection.details?.submitted?.pantrySnapshotVersion}
+                          {' -> '}
+                          {staleSelection.details?.current?.pantrySnapshotVersion}
+                        </span>
+                        <span>
+                          Bundle {staleSelection.details?.submitted?.activeBundleVersion}
+                          {' -> '}
+                          {staleSelection.details?.current?.activeBundleVersion}
+                        </span>
+                      </div>
+                      <div className="settings-actions">
+                        <button
+                          className="button button--dark"
+                          type="button"
+                          disabled={isCandidatesLoading || isSelectingBundle}
+                          onClick={refreshBundleCandidates}>
+                          <RefreshCw size={18} /> Refresh candidates
+                        </button>
+                        <button
+                          className="button"
+                          type="button"
+                          disabled={isSelectingBundle}
+                          onClick={handleProceedWithStaleSelection}>
+                          <Check size={18} /> Proceed anyway
+                        </button>
+                      </div>
+                    </section>
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="gd-empty-tab">
+                <UtensilsCrossed size={36} style={{ opacity: 0.3 }} />
+                <p>Recipes coming soon.</p>
+              </div>
+            )}
           </section>
         )}
 
