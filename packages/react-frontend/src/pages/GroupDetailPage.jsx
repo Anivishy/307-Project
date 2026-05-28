@@ -14,6 +14,7 @@ import { StatusMessage } from '../components/StatusMessage.jsx';
 import {
   getGroup,
   getGroupMembers,
+  getGroupPantry,
   getGroupSettings,
   updateGroupSettings
 } from '../lib/groupApi.js';
@@ -25,6 +26,10 @@ function buildInviteLink(inviteCode) {
 function initials(member) {
   const name = member.displayName || member.email || '??';
   return name.slice(0, 2).toUpperCase();
+}
+
+function memberName(member) {
+  return member.displayName || member.email?.split('@')[0] || 'Member';
 }
 
 function isAdminRole(role) {
@@ -56,6 +61,10 @@ export function GroupDetailPage() {
   const { groupId } = useParams();
   const [groupInfo, setGroupInfo] = useState(null);
   const [members, setMembers] = useState([]);
+  const [groupPantry, setGroupPantry] = useState([]);
+  const [selectedPantryOwnerId, setSelectedPantryOwnerId] = useState('');
+  const [isPantryLoading, setIsPantryLoading] = useState(false);
+  const [pantryError, setPantryError] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState('');
   const [activeTab, setActiveTab] = useState('members');
@@ -98,6 +107,9 @@ export function GroupDetailPage() {
 
   useEffect(() => {
     setSettings(null);
+    setGroupPantry([]);
+    setSelectedPantryOwnerId('');
+    setPantryError('');
     setCustomStaplesDraft([]);
     setStapleQuery('');
     setSettingsError('');
@@ -106,6 +118,34 @@ export function GroupDetailPage() {
 
   const groupName = groupInfo?.name ?? '…';
   const isAdmin = isAdminRole(groupInfo?.role);
+
+  useEffect(() => {
+    if (!groupId || activeTab !== 'pantry') {
+      return undefined;
+    }
+
+    let isCancelled = false;
+
+    async function loadGroupPantry() {
+      setIsPantryLoading(true);
+      setPantryError('');
+
+      try {
+        const payload = await getGroupPantry(groupId, selectedPantryOwnerId);
+        if (isCancelled) return;
+        setGroupPantry(payload.pantry ?? []);
+      } catch (error) {
+        if (!isCancelled) {
+          setPantryError(error instanceof Error ? error.message : 'Unable to load group pantry.');
+        }
+      } finally {
+        if (!isCancelled) setIsPantryLoading(false);
+      }
+    }
+
+    void loadGroupPantry();
+    return () => { isCancelled = true; };
+  }, [activeTab, groupId, selectedPantryOwnerId]);
 
   useEffect(() => {
     if (!groupId || activeTab !== 'settings' || !isAdmin || settings) {
@@ -249,17 +289,6 @@ export function GroupDetailPage() {
   const canEditSettings =
     isAdmin && (!settings?.viewerRole || isAdminRole(settings.viewerRole));
 
-  // Build combined pantry: flat list of all ingredients across members
-  const combinedPantry = members
-    .flatMap((m) =>
-      (m.ingredients ?? []).map((ing) => ({
-        ...ing,
-        ownerName:
-          m.displayName || m.email?.split('@')[0] || 'Member'
-      }))
-    )
-    .sort((a, b) => a.name.localeCompare(b.name));
-
   return (
     <section className="screen group-detail-screen">
       <div className="gd-header">
@@ -334,17 +363,14 @@ export function GroupDetailPage() {
               <div className="member-grid">
                 {members.map((member) => {
                   const memberIngredients = member.ingredients ?? [];
-                  const memberName =
-                    member.displayName ||
-                    member.email?.split('@')[0] ||
-                    'Member';
+                  const displayName = memberName(member);
                   const memberRole = member.role ?? 'Member';
 
                   return (
                     <article className="member-card surface-card" key={member.profileId ?? member.email}>
                       <div className="member-card__avatar">{initials(member)}</div>
                       <div className="member-card__info">
-                        <strong>{memberName}</strong>
+                        <strong>{displayName}</strong>
                         <small>{member.email ?? ''}</small>
                         <span className={`member-role-badge member-role-badge--${memberRole.toLowerCase()}`}>
                           {memberRole}
@@ -383,19 +409,50 @@ export function GroupDetailPage() {
           <section className="gd-tab-content">
             <div className="section-heading" style={{ marginBottom: '1rem' }}>
               <h2>Combined Pantry</h2>
-              <span style={{ fontSize: '0.85rem', opacity: 0.6 }}>{combinedPantry.length} items</span>
+              <span style={{ fontSize: '0.85rem', opacity: 0.6 }}>{groupPantry.length} items</span>
             </div>
-            {isLoading ? (
+
+            <label className="owner-filter">
+              <span>Owner</span>
+              <select
+                aria-label="Filter pantry by owner"
+                value={selectedPantryOwnerId}
+                onChange={(event) => setSelectedPantryOwnerId(event.target.value)}
+              >
+                <option value="">All members</option>
+                {members.map((member) => (
+                  <option key={member.profileId} value={member.profileId}>
+                    {memberName(member)}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            {pantryError && (
+              <StatusMessage type="error" title="Pantry error" message={pantryError} />
+            )}
+
+            {isPantryLoading || isLoading ? (
               <StatusMessage type="loading" title="Loading pantry" message="Combining all members' ingredients…" />
-            ) : combinedPantry.length === 0 ? (
+            ) : groupPantry.length === 0 ? (
               <p style={{ opacity: 0.6, fontSize: '0.9rem' }}>No pantry items yet. Ask members to add ingredients to My Pantry.</p>
             ) : (
               <div className="combined-pantry-list">
-                {combinedPantry.map((ing) => (
-                  <div className="combined-pantry-row" key={`${ing.ownerName}-${ing.id}`}>
+                {groupPantry.map((ing) => (
+                  <div className="combined-pantry-row" key={`${ing.ingredientId}-${ing.unit ?? 'unit'}`}>
                     <div className="combined-pantry-row__name">
                       <span>{ing.name}</span>
-                      <span className="combined-pantry-row__owner">{ing.ownerName}</span>
+                      <span className="combined-pantry-row__owners" aria-label={`Owners: ${ing.owners.map((owner) => owner.displayName).join(', ')}`}>
+                        {ing.owners.map((owner) => (
+                          <span
+                            className="owner-dot"
+                            key={`${ing.ingredientId}-${owner.userId}`}
+                            title={owner.displayName}
+                          >
+                            {owner.initials}
+                          </span>
+                        ))}
+                      </span>
                     </div>
                     {ing.quantity !== null && ing.quantity !== undefined && (
                       <span className="combined-pantry-row__qty">{ing.quantity} {ing.unit}</span>

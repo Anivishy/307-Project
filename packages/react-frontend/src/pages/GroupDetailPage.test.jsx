@@ -51,6 +51,72 @@ const membersPayload = {
   ]
 };
 
+const groupPantryPayload = {
+  pantry: [
+    {
+      ingredientId: "rice",
+      name: "Rice",
+      quantity: 5,
+      unit: "cups",
+      owners: [
+        {
+          userId: "profile-avery",
+          displayName: "Avery Cook",
+          initials: "AC",
+          avatarUrl: null,
+          quantity: 2,
+          unit: "cups"
+        },
+        {
+          userId: "profile-sam",
+          displayName: "Sam Prep",
+          initials: "SP",
+          avatarUrl: null,
+          quantity: 3,
+          unit: "cups"
+        }
+      ]
+    },
+    {
+      ingredientId: "tomato",
+      name: "Tomato",
+      quantity: 4,
+      unit: "pcs",
+      owners: [
+        {
+          userId: "profile-avery",
+          displayName: "Avery Cook",
+          initials: "AC",
+          avatarUrl: null,
+          quantity: 4,
+          unit: "pcs"
+        }
+      ]
+    }
+  ]
+};
+
+const samPantryPayload = {
+  pantry: [
+    {
+      ingredientId: "rice",
+      name: "Rice",
+      quantity: 3,
+      unit: "cups",
+      owners: [
+        {
+          userId: "profile-sam",
+          displayName: "Sam Prep",
+          initials: "SP",
+          avatarUrl: null,
+          quantity: 3,
+          unit: "cups"
+        }
+      ]
+    }
+  ]
+};
+
 const groupSettingsPayload = {
   groupId: "dorm-dinner-crew",
   groupName: "Dorm Dinner Crew",
@@ -91,10 +157,18 @@ describe("GroupDetailPage", () => {
   beforeEach(() => {
     fetchMock = vi.fn(async (input, options) => {
       const url = String(input);
+      const parsedUrl = new URL(url, "http://localhost");
       let payload = groupPayload;
 
       if (url.endsWith("/members")) {
         payload = membersPayload;
+      }
+
+      if (parsedUrl.pathname.endsWith("/pantry")) {
+        payload =
+          parsedUrl.searchParams.get("ownerId") === "profile-sam"
+            ? samPantryPayload
+            : groupPantryPayload;
       }
 
       if (url.endsWith("/settings")) {
@@ -158,11 +232,41 @@ describe("GroupDetailPage", () => {
     );
 
     expect(screen.getByText("Combined Pantry")).toBeInTheDocument();
-    expect(screen.getByText("Rice")).toBeInTheDocument();
+    expect(await screen.findByText("Rice")).toBeInTheDocument();
     expect(screen.getByText("Tomato")).toBeInTheDocument();
-    expect(screen.getAllByText("Avery Cook").length).toBeGreaterThan(0);
-    expect(screen.getByText("2 cups")).toBeInTheDocument();
+    expect(
+      screen.getByLabelText("Owners: Avery Cook, Sam Prep")
+    ).toBeInTheDocument();
+    expect(screen.getAllByText("AC").length).toBeGreaterThan(0);
+    expect(screen.getByText("SP")).toBeInTheDocument();
+    expect(screen.getByText("5 cups")).toBeInTheDocument();
     expect(screen.getByText("4 pcs")).toBeInTheDocument();
+  });
+
+  it("filters the combined pantry by owner", async () => {
+    const user = userEvent.setup();
+    renderGroupDetailPage();
+
+    await user.click(await screen.findByRole("button", { name: /Pantry/i }));
+    await screen.findByText("Tomato");
+
+    await user.selectOptions(
+      screen.getByLabelText("Filter pantry by owner"),
+      "profile-sam"
+    );
+
+    await waitFor(() => {
+      expect(
+        fetchMock.mock.calls.some(([url]) =>
+          String(url).includes("/pantry?ownerId=profile-sam")
+        )
+      ).toBe(true);
+    });
+
+    expect(await screen.findByText("3 cups")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.queryByText("Tomato")).not.toBeInTheDocument();
+    });
   });
 
   it("shows the admin settings tab and reflects the current missing-ingredient setting", async () => {

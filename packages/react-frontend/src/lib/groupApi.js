@@ -1,7 +1,9 @@
 import { apiFetch, readJson } from './api.js';
 
 export function getGroupPreview(inviteCode) {
-  return fetch(`/api/groups/invite/${encodeURIComponent(inviteCode)}`).then(readJson);
+  return fetch(
+    `/api/groups/invite/${encodeURIComponent(inviteCode)}`
+  ).then(readJson);
 }
 
 export function getGroups() {
@@ -28,6 +30,19 @@ export function getGroup(groupId) {
 
 export function getGroupMembers(groupId) {
   return apiFetch(`/api/groups/${groupId}/members`);
+}
+
+export function getGroupPantry(groupId, ownerId = '') {
+  const params = new URLSearchParams();
+
+  if (ownerId) {
+    params.set('ownerId', ownerId);
+  }
+
+  const query = params.toString();
+  return apiFetch(
+    `/api/groups/${groupId}/pantry${query ? `?${query}` : ''}`
+  );
 }
 
 export function getGroupSettings(groupId) {
