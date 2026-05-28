@@ -4,6 +4,7 @@ import {
   normalizeNullableText,
   normalizeRequiredText
 } from './input-normalization';
+import { findIngredientById } from './constraints/ingredients';
 import { prisma } from './prisma';
 import { isPrismaError } from './prisma-utils';
 import { assertUuid } from './request-user';
@@ -56,6 +57,36 @@ function normalizeNullableQuantity(value: unknown) {
   return quantity;
 }
 
+function validateCanonicalUnit(
+  canonicalIngredientId: string | null | undefined,
+  unit: string | null | undefined
+) {
+  if (!canonicalIngredientId || !unit) {
+    return;
+  }
+
+  const ingredient = findIngredientById(canonicalIngredientId);
+
+  if (!ingredient) {
+    throw new ApiError(
+      400,
+      'canonicalIngredientId must reference a known ingredient.'
+    );
+  }
+
+  const normalizedUnit = unit.toLowerCase();
+  const supportedUnits = ingredient.commonUnits.map(
+    (commonUnit) => commonUnit.toLowerCase()
+  );
+
+  if (!supportedUnits.includes(normalizedUnit)) {
+    throw new ApiError(
+      400,
+      `${unit} is not supported for ${ingredient.name}. Use one of: ${ingredient.commonUnits.join(', ')}.`
+    );
+  }
+}
+
 function serializeIngredient(ingredient: Ingredient) {
   // Prisma decimals serialize awkwardly; convert them before returning API JSON.
   return {
@@ -104,16 +135,22 @@ export async function createIngredient(
   assertUuid(ownerId, 'ownerId');
   await ensureProfileExists(ownerId);
 
+  const canonicalIngredientId = normalizeCanonicalIngredientId(
+    input.canonicalIngredientId
+  );
+  const name = normalizeRequiredText(input.name, 'name', 120);
+  const quantity = normalizeNullableQuantity(input.quantity);
+  const unit = normalizeNullableText(input.unit, 'unit', 40);
+  validateCanonicalUnit(canonicalIngredientId, unit);
+
   try {
     const ingredient = await prisma.ingredient.create({
       data: {
         ownerId,
-        canonicalIngredientId: normalizeCanonicalIngredientId(
-          input.canonicalIngredientId
-        ),
-        name: normalizeRequiredText(input.name, 'name', 120),
-        quantity: normalizeNullableQuantity(input.quantity),
-        unit: normalizeNullableText(input.unit, 'unit', 40),
+        canonicalIngredientId,
+        name,
+        quantity,
+        unit,
         notes: normalizeNullableText(
           input.notes,
           'notes',
@@ -181,12 +218,23 @@ export async function updateIngredient(
 
   const existingIngredient = await prisma.ingredient.findFirst({
     where: { id: ingredientId, ownerId },
-    select: { id: true }
+    select: {
+      id: true,
+      canonicalIngredientId: true,
+      unit: true
+    }
   });
 
   if (!existingIngredient) {
     throw new ApiError(404, 'Ingredient not found.');
   }
+
+  validateCanonicalUnit(
+    'canonicalIngredientId' in data
+      ? data.canonicalIngredientId
+      : existingIngredient.canonicalIngredientId,
+    'unit' in data ? data.unit : existingIngredient.unit
+  );
 
   try {
     const ingredient = await prisma.ingredient.update({
