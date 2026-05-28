@@ -1,12 +1,12 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { ChefHat, Package, Sparkles, UsersRound } from "lucide-react";
-import { EmptyState } from "../components/EmptyState.jsx";
-import { GlassIconButton } from "../components/GlassIconButton.jsx";
-import { RecipeCard } from "../components/RecipeCard.jsx";
-import { SearchFilter } from "../components/SearchFilter.jsx";
-import { recipes } from "../data/recipes.js";
-import { getSavedSession } from "../lib/session.js";
+import { EmptyState } from "@/components/EmptyState.jsx";
+import { GlassIconButton } from "@/components/GlassIconButton.jsx";
+import { RecipeCard } from "@/components/RecipeCard.jsx";
+import { SearchFilter } from "@/components/SearchFilter.jsx";
+import { recipes } from "@/data/recipes.js";
+import { getSavedSession } from "@/lib/session.js";
 
 export function RecipeListPage() {
   const [search, setSearch] = useState("");

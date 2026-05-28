@@ -1,9 +1,9 @@
 import { KeyRound, UsersRound } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { StatusMessage } from '../components/StatusMessage.jsx';
-import { getGroupPreview, joinGroup } from '../lib/groupApi.js';
-import { getSavedSession } from '../lib/session.js';
+import { StatusMessage } from '@/components/StatusMessage.jsx';
+import { getGroupPreview, joinGroup } from '@/lib/groupApi.js';
+import { getSavedSession } from '@/lib/session.js';
 
 export function JoinGroupPage() {
   const { inviteCode } = useParams();

@@ -1,10 +1,8 @@
-import {
-  getDefaultStaplesPreset,
-  resolveIngredientIds,
-  type BundleIngredient,
-  type BundleTemplate,
-  type GroupRecord,
-  type PantryItem
+import type {
+  BundleIngredient,
+  BundleTemplate,
+  GroupRecord,
+  PantryItem
 } from './demo-store';
 import type {
   ConstraintViolation,
@@ -64,19 +62,23 @@ function buildIngredientDisclosure(
   };
 }
 
+const DEFAULT_STAPLE_IDS = [
+  '4053',
+  '1001',
+  '2047',
+  '1002030',
+  'olive-oil',
+  'butter',
+  'salt',
+  'pepper'
+];
+
 function getEnabledStapleIds(group: GroupRecord) {
   if (!group.staplesEnabled) {
     return new Set<string>();
   }
 
-  const stapleIds = [
-    ...getDefaultStaplesPreset().map((item) => item.id),
-    ...resolveIngredientIds(group.customStaples).map(
-      (item) => item.id
-    )
-  ];
-
-  return new Set(stapleIds);
+  return new Set([...DEFAULT_STAPLE_IDS, ...group.customStaples]);
 }
 
 function buildContributorMapping(
