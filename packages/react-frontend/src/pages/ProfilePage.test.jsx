@@ -126,6 +126,23 @@ describe('ProfilePage US5 controls', () => {
         });
       }
 
+      if (url === '/api/auth/password/change') {
+        return jsonResponse({
+          passwordUpdated: true,
+          sessionsRevoked: true,
+          requiresSignIn: true
+        });
+      }
+
+      if (url === '/api/auth/account') {
+        return jsonResponse({
+          accountDeleted: true,
+          sessionsRevoked: true,
+          membershipsRemoved: true,
+          profileAnonymized: true
+        });
+      }
+
       if (url.startsWith('/api/ingredients/catalog')) {
         return jsonResponse(ingredientsPayload);
       }
@@ -227,6 +244,62 @@ describe('ProfilePage US5 controls', () => {
     );
   });
 
+  it('shows profile picture validation errors before saving', async () => {
+    const user = userEvent.setup();
+    const picture = new File(
+      [new Uint8Array(5 * 1024 * 1024 + 1)],
+      'avatar.png',
+      {
+        type: 'image/png'
+      }
+    );
+
+    render(<ProfilePage />);
+
+    await screen.findByLabelText(/display name/i);
+    await user.upload(
+      screen.getByLabelText(/upload profile picture/i),
+      picture
+    );
+
+    expect(
+      screen.getByText(/profile picture must be 5 mb or smaller/i)
+    ).toBeInTheDocument();
+    expect(
+      fetchMock.mock.calls.some(
+        ([url, options]) =>
+          String(url) === '/api/profiles/me' &&
+          options?.method === 'PATCH'
+      )
+    ).toBe(false);
+  });
+
+  it('shows profile picture file-type errors before saving', async () => {
+    const user = userEvent.setup({ applyAccept: false });
+    const picture = new File(['avatar'], 'avatar.svg', {
+      type: 'image/svg+xml'
+    });
+
+    render(<ProfilePage />);
+
+    await screen.findByLabelText(/display name/i);
+    await user.upload(
+      screen.getByLabelText(/upload profile picture/i),
+      picture
+    );
+
+    expect(
+      screen.getByText(/profile picture must be jpeg, png, webp, or gif/i)
+    ).toBeInTheDocument();
+    expect(
+      fetchMock.mock.calls.some(
+        ([url, options]) =>
+          String(url) === '/api/profiles/me' &&
+          options?.method === 'PATCH'
+      )
+    ).toBe(false);
+  });
+
   it('requests email-change verification from account settings', async () => {
     const user = userEvent.setup();
 
@@ -256,5 +329,78 @@ describe('ProfilePage US5 controls', () => {
         newEmail: 'avery@example.com'
       });
     });
+  });
+
+  it('changes the password and clears the saved session when re-authentication is required', async () => {
+    const user = userEvent.setup();
+
+    render(<ProfilePage />);
+
+    await screen.findByLabelText(/display name/i);
+    const passwordInputs =
+      screen.getAllByLabelText(/current password/i);
+    const newPasswordInput =
+      screen.getByLabelText(/new password/i);
+
+    await user.type(passwordInputs[0], 'current-secret');
+    await user.type(newPasswordInput, 'new-secret');
+    await user.click(
+      screen.getByRole('button', {
+        name: /change password/i
+      })
+    );
+
+    await screen.findByText(/password changed/i);
+
+    const passwordCall = fetchMock.mock.calls.find(
+      ([url, options]) =>
+        String(url) === '/api/auth/password/change' &&
+        options?.method === 'POST'
+    );
+
+    expect(JSON.parse(passwordCall[1].body)).toEqual({
+      currentPassword: 'current-secret',
+      newPassword: 'new-secret'
+    });
+    expect(localStorage.removeItem).toHaveBeenCalledWith(
+      'recipeCollab.session'
+    );
+  });
+
+  it('deletes the account after email confirmation and clears the saved session', async () => {
+    const user = userEvent.setup();
+
+    render(<ProfilePage />);
+
+    await screen.findByLabelText(/display name/i);
+    const passwordInputs =
+      screen.getAllByLabelText(/current password/i);
+
+    await user.type(passwordInputs[1], 'current-secret');
+    await user.type(
+      screen.getByLabelText(/confirm email/i),
+      'kartik@example.com'
+    );
+    await user.click(
+      screen.getByRole('button', {
+        name: /delete account/i
+      })
+    );
+
+    await screen.findByText(/account deleted/i);
+
+    const deleteCall = fetchMock.mock.calls.find(
+      ([url, options]) =>
+        String(url) === '/api/auth/account' &&
+        options?.method === 'DELETE'
+    );
+
+    expect(JSON.parse(deleteCall[1].body)).toEqual({
+      currentPassword: 'current-secret',
+      confirmation: 'kartik@example.com'
+    });
+    expect(localStorage.removeItem).toHaveBeenCalledWith(
+      'recipeCollab.session'
+    );
   });
 });

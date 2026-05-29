@@ -1,4 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { DELETE as deleteAccountRoute } from '../app/api/auth/account/route';
+import { POST as postEmailChangeRequest } from '../app/api/auth/email-change/request/route';
+import { POST as postPasswordChange } from '../app/api/auth/password/change/route';
 import {
   changePassword,
   completeEmailChange,
@@ -238,6 +241,25 @@ describe('US16 sensitive account flows', () => {
     expect(revokeSupabaseSessions).not.toHaveBeenCalled();
   });
 
+  it('requires the current password before changing passwords', async () => {
+    vi.mocked(getSupabaseUserFromAccessToken).mockResolvedValue(
+      authUser()
+    );
+
+    await expect(
+      changePassword('access-token', {
+        newPassword: 'new-secret'
+      })
+    ).rejects.toMatchObject({
+      statusCode: 400,
+      message: 'currentPassword is required.'
+    });
+
+    expect(signInSupabaseWithPassword).not.toHaveBeenCalled();
+    expect(updateSupabaseUser).not.toHaveBeenCalled();
+    expect(revokeSupabaseSessions).not.toHaveBeenCalled();
+  });
+
   it('deletes an account after explicit confirmation and recent password reauthentication', async () => {
     vi.mocked(getSupabaseUserFromAccessToken).mockResolvedValue(
       authUser()
@@ -292,5 +314,47 @@ describe('US16 sensitive account flows', () => {
     expect(signInSupabaseWithPassword).not.toHaveBeenCalled();
     expect(deleteSupabaseAuthUser).not.toHaveBeenCalled();
     expect(anonymizeProfileForAccountDeletion).not.toHaveBeenCalled();
+  });
+
+  it('rejects unauthenticated sensitive account requests before calling Supabase', async () => {
+    const emailResponse = await postEmailChangeRequest(
+      new Request(
+        'http://localhost/api/auth/email-change/request',
+        {
+          method: 'POST',
+          body: JSON.stringify({ newEmail })
+        }
+      )
+    );
+    const passwordResponse = await postPasswordChange(
+      new Request('http://localhost/api/auth/password/change', {
+        method: 'POST',
+        body: JSON.stringify({
+          currentPassword: 'current-secret',
+          newPassword: 'new-secret'
+        })
+      })
+    );
+    const deleteResponse = await deleteAccountRoute(
+      new Request('http://localhost/api/auth/account', {
+        method: 'DELETE',
+        body: JSON.stringify({
+          currentPassword: 'current-secret',
+          confirmation: oldEmail
+        })
+      })
+    );
+
+    expect(emailResponse.status).toBe(401);
+    expect(passwordResponse.status).toBe(401);
+    expect(deleteResponse.status).toBe(401);
+    await expect(emailResponse.json()).resolves.toMatchObject({
+      error: {
+        message: 'Missing Authorization bearer token.'
+      }
+    });
+    expect(getSupabaseUserFromAccessToken).not.toHaveBeenCalled();
+    expect(updateSupabaseUser).not.toHaveBeenCalled();
+    expect(deleteSupabaseAuthUser).not.toHaveBeenCalled();
   });
 });

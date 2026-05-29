@@ -1,13 +1,22 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { PATCH as patchProfileMe } from '../app/api/profiles/me/route';
 import {
+  anonymizeProfileForAccountDeletion,
   findOrCreateProfileForEmail,
   PROFILE_PICTURE_MAX_SIZE_BYTES,
+  updateProfileEmail,
   updateProfileIdentity
 } from './profile-service';
 
 const { prismaMock } = vi.hoisted(() => ({
   prismaMock: {
+    $transaction: vi.fn(),
+    groupMember: {
+      deleteMany: vi.fn()
+    },
+    ingredient: {
+      deleteMany: vi.fn()
+    },
     profile: {
       findUnique: vi.fn(),
       update: vi.fn(),
@@ -148,6 +157,19 @@ describe('profile service identity updates', () => {
     });
   });
 
+  it('rejects display name validation errors before saving', async () => {
+    await expect(
+      updateProfileIdentity(supabaseUserId, {
+        displayName: 'A'.repeat(121)
+      })
+    ).rejects.toMatchObject({
+      statusCode: 400,
+      message: 'displayName must be 120 characters or fewer.'
+    });
+
+    expect(prismaMock.profile.update).not.toHaveBeenCalled();
+  });
+
   it('rejects unsupported profile picture file types before saving', async () => {
     await expect(
       updateProfileIdentity(supabaseUserId, {
@@ -198,5 +220,76 @@ describe('profile service identity updates', () => {
       }
     });
     expect(prismaMock.profile.update).not.toHaveBeenCalled();
+  });
+
+  it('rejects duplicate local profile emails during email changes', async () => {
+    prismaMock.profile.update.mockRejectedValue({ code: 'P2002' });
+
+    await expect(
+      updateProfileEmail(supabaseUserId, 'avery@example.com')
+    ).rejects.toMatchObject({
+      statusCode: 409,
+      message: 'A profile with that email already exists.'
+    });
+  });
+
+  it('removes profile-owned data and anonymizes the profile during account deletion', async () => {
+    const deleteIngredients = { operation: 'delete-ingredients' };
+    const deleteMemberships = {
+      operation: 'delete-memberships'
+    };
+    const anonymizeProfile = {
+      operation: 'anonymize-profile'
+    };
+    prismaMock.ingredient.deleteMany.mockReturnValue(
+      deleteIngredients
+    );
+    prismaMock.groupMember.deleteMany.mockReturnValue(
+      deleteMemberships
+    );
+    prismaMock.profile.update.mockReturnValue(anonymizeProfile);
+    prismaMock.$transaction.mockResolvedValue([
+      { count: 3 },
+      { count: 2 },
+      profileRecord({
+        id: supabaseUserId,
+        email: `deleted-${supabaseUserId}@deleted.local`,
+        displayName: 'Deleted account'
+      })
+    ]);
+
+    const payload =
+      await anonymizeProfileForAccountDeletion(supabaseUserId);
+
+    expect(prismaMock.ingredient.deleteMany).toHaveBeenCalledWith({
+      where: { ownerId: supabaseUserId }
+    });
+    expect(prismaMock.groupMember.deleteMany).toHaveBeenCalledWith({
+      where: { profileId: supabaseUserId }
+    });
+    expect(prismaMock.profile.update).toHaveBeenCalledWith({
+      where: { id: supabaseUserId },
+      data: {
+        email: `deleted-${supabaseUserId}@deleted.local`,
+        displayName: 'Deleted account',
+        profilePictureUrl: null,
+        profilePictureStorageRef: null,
+        profilePictureContentType: null,
+        profilePictureSizeBytes: null,
+        allergies: [],
+        medicalRestrictions: [],
+        neverIncludeIngredientIds: []
+      }
+    });
+    expect(prismaMock.$transaction).toHaveBeenCalledWith([
+      deleteIngredients,
+      deleteMemberships,
+      anonymizeProfile
+    ]);
+    expect(payload).toEqual({
+      profileId: supabaseUserId,
+      membershipsRemoved: true,
+      profileAnonymized: true
+    });
   });
 });
