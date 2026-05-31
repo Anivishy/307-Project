@@ -3,12 +3,13 @@ import type {
   GroupMember,
   GroupRole
 } from '../generated/prisma';
+import { randomUUID } from 'node:crypto';
 import { ApiError } from './api-error';
+import { shouldUseLocalDemoStore } from './database-env';
 import {
   normalizeOptionalText,
   normalizeRequiredText
 } from './input-normalization';
-import { prisma } from './prisma';
 import { assertUuid } from './request-user';
 
 type GroupCreateInput = {
@@ -23,6 +24,52 @@ type GroupJoinInput = {
 type GroupWithMembers = Group & {
   members: GroupMember[];
 };
+
+const demoGroupsById = new Map<string, GroupWithMembers>();
+const demoGroupsByInviteCode = new Map<string, GroupWithMembers>();
+
+async function getPrismaClient() {
+  const { prisma } = await import('./prisma');
+  return prisma;
+}
+
+function createDemoGroupRecord(input: {
+  ownerId: string;
+  name: string;
+  description?: string;
+  inviteCode: string;
+}) {
+  const now = new Date();
+  const group = {
+    id: randomUUID(),
+    ownerId: input.ownerId,
+    name: input.name,
+    description: input.description ?? null,
+    inviteCode: input.inviteCode,
+    pantrySnapshotVersion: 1,
+    activeBundleVersion: 1,
+    selectedBundleId: null,
+    allowMissingIngredients: false,
+    staplesEnabled: false,
+    customStaples: [],
+    createdAt: now,
+    updatedAt: now,
+    members: [
+      {
+        id: randomUUID(),
+        groupId: '',
+        profileId: input.ownerId,
+        role: 'ADMIN',
+        joinedAt: now
+      }
+    ]
+  } satisfies GroupWithMembers;
+
+  group.members[0].groupId = group.id;
+  demoGroupsById.set(group.id, group);
+  demoGroupsByInviteCode.set(group.inviteCode ?? '', group);
+  return group;
+}
 
 function normalizeInviteCode(value: unknown) {
   const inviteCode = normalizeRequiredText(value, 'inviteCode', 32)
@@ -83,6 +130,11 @@ function serializeGroup(
 }
 
 async function ensureProfileExists(profileId: string) {
+  if (shouldUseLocalDemoStore()) {
+    return;
+  }
+
+  const prisma = await getPrismaClient();
   const profile = await prisma.profile.findUnique({
     where: { id: profileId },
     select: { id: true }
@@ -93,9 +145,39 @@ async function ensureProfileExists(profileId: string) {
   }
 }
 
+function getDemoGroupForMember(
+  groupId: string,
+  profileId: string
+) {
+  const group = demoGroupsById.get(groupId);
+
+  if (!group) {
+    throw new ApiError(404, 'Group not found.');
+  }
+
+  const isMember = group.members.some(
+    (member) => member.profileId === profileId
+  );
+
+  if (!isMember) {
+    throw new ApiError(403, 'You are not a member of this group.');
+  }
+
+  return group;
+}
+
 export async function listUserGroups(profileId: string) {
   assertUuid(profileId, 'authenticated user id');
 
+  if (shouldUseLocalDemoStore()) {
+    return Array.from(demoGroupsById.values())
+      .filter((group) =>
+        group.members.some((member) => member.profileId === profileId)
+      )
+      .map((group) => serializeGroup(group, profileId));
+  }
+
+  const prisma = await getPrismaClient();
   const groups = await prisma.group.findMany({
     where: {
       members: {
@@ -126,6 +208,19 @@ export async function createUserGroup(
   );
   const inviteCode = buildInviteCode(name);
 
+  if (shouldUseLocalDemoStore()) {
+    return serializeGroup(
+      createDemoGroupRecord({
+        ownerId: profileId,
+        name,
+        description,
+        inviteCode
+      }),
+      profileId
+    );
+  }
+
+  const prisma = await getPrismaClient();
   const group = await prisma.group.create({
     data: {
       ownerId: profileId,
@@ -152,6 +247,21 @@ export async function getGroupMembers(
   assertUuid(groupId, 'groupId');
   assertUuid(profileId, 'authenticated user id');
 
+  if (shouldUseLocalDemoStore()) {
+    const group = getDemoGroupForMember(groupId, profileId);
+    return group.members.map((member) => ({
+      profileId: member.profileId,
+      displayName: null,
+      profilePictureUrl: null,
+      profilePictureStorageRef: null,
+      email: null,
+      role: roleLabel(member.role),
+      joinedAt: member.joinedAt.toISOString(),
+      ingredients: []
+    }));
+  }
+
+  const prisma = await getPrismaClient();
   const group = await prisma.group.findUnique({
     where: { id: groupId },
     include: {
@@ -207,6 +317,14 @@ export async function getGroupById(
   assertUuid(groupId, 'groupId');
   assertUuid(profileId, 'authenticated user id');
 
+  if (shouldUseLocalDemoStore()) {
+    return serializeGroup(
+      getDemoGroupForMember(groupId, profileId),
+      profileId
+    );
+  }
+
+  const prisma = await getPrismaClient();
   const group = await prisma.group.findUnique({
     where: { id: groupId },
     include: { members: true }
@@ -231,6 +349,24 @@ export async function getGroupPreviewByInviteCode(
   inviteCode: unknown
 ) {
   const code = normalizeInviteCode(inviteCode);
+
+  if (shouldUseLocalDemoStore()) {
+    const group = demoGroupsByInviteCode.get(code);
+
+    if (!group) {
+      throw new ApiError(404, 'Invite code not found.');
+    }
+
+    return {
+      id: group.id,
+      name: group.name,
+      description: group.description,
+      inviteCode: group.inviteCode,
+      members: group.members.length
+    };
+  }
+
+  const prisma = await getPrismaClient();
   const group = await prisma.group.findUnique({
     where: { inviteCode: code },
     include: { members: true }
@@ -257,6 +393,38 @@ export async function joinUserGroup(
   await ensureProfileExists(profileId);
 
   const inviteCode = normalizeInviteCode(input.inviteCode);
+
+  if (shouldUseLocalDemoStore()) {
+    const group = demoGroupsByInviteCode.get(inviteCode);
+
+    if (!group) {
+      throw new ApiError(404, 'Invite code not found.');
+    }
+
+    if (
+      group.members.some(
+        (member) => member.profileId === profileId
+      )
+    ) {
+      throw new ApiError(
+        409,
+        'You already belong to this group.'
+      );
+    }
+
+    group.members.push({
+      id: randomUUID(),
+      groupId: group.id,
+      profileId,
+      role: 'MEMBER',
+      joinedAt: new Date()
+    });
+    group.updatedAt = new Date();
+
+    return serializeGroup(group, profileId);
+  }
+
+  const prisma = await getPrismaClient();
   const group = await prisma.group.findUnique({
     where: { inviteCode },
     include: { members: true }

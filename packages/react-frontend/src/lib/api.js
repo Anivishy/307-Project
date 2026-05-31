@@ -2,6 +2,12 @@ import {
   ensureAuthSession,
   refreshAuthSession
 } from './authApi.js';
+import {
+  REQUEST_TIMEOUT_MS,
+  fetchWithTimeout
+} from './request.js';
+
+export { REQUEST_TIMEOUT_MS, fetchWithTimeout };
 
 export async function readJson(response) {
   const text = await response.text();
@@ -41,7 +47,7 @@ export async function apiFetch(path, init = {}) {
     headers.set('content-type', 'application/json');
   }
 
-  let response = await fetch(path, { ...init, headers });
+  let response = await fetchWithTimeout(path, { ...init, headers });
 
   if (response.status === 401 && session?.refreshToken) {
     const refreshedSession = await refreshAuthSession(
@@ -51,7 +57,7 @@ export async function apiFetch(path, init = {}) {
       'authorization',
       `Bearer ${refreshedSession.accessToken}`
     );
-    response = await fetch(path, { ...init, headers });
+    response = await fetchWithTimeout(path, { ...init, headers });
   }
 
   return readJson(response);

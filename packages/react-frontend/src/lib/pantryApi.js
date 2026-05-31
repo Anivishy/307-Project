@@ -1,25 +1,8 @@
-import { apiFetch } from './api.js';
-
-async function readJson(response) {
-  if (response.status === 204) {
-    return null;
-  }
-
-  const payload = await response.json();
-
-  if (!response.ok) {
-    throw new Error(
-      payload.error?.message ??
-        payload.error ??
-        'Request failed.'
-    );
-  }
-
-  return payload;
-}
+import { apiFetch, readJson } from './api.js';
+import { fetchWithTimeout } from './request.js';
 
 export async function getIngredientCatalog() {
-  const response = await fetch('/api/ingredients/catalog');
+  const response = await fetchWithTimeout('/api/ingredients/catalog');
   return readJson(response);
 }
 

@@ -1,3 +1,4 @@
+import { fetchWithTimeout } from './request.js';
 import {
   clearSession,
   getSavedSession,
@@ -38,7 +39,7 @@ export async function signUpWithPassword({
   displayName
 }) {
   const redirectTo = `${window.location.origin}/auth/callback`;
-  const response = await fetch('/api/auth/password/signup', {
+  const response = await fetchWithTimeout('/api/auth/password/signup', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({
@@ -57,7 +58,7 @@ export async function signUpWithPassword({
 }
 
 export async function signInWithPassword({ email, password }) {
-  const response = await fetch('/api/auth/password/signin', {
+  const response = await fetchWithTimeout('/api/auth/password/signin', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ email, password })
@@ -75,7 +76,7 @@ export async function completeMagicLinkSession({
   expiresIn,
   expiresAt
 }) {
-  const response = await fetch('/api/auth/session/complete', {
+  const response = await fetchWithTimeout('/api/auth/session/complete', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({
@@ -100,7 +101,7 @@ export async function refreshAuthSession(
     throw new Error('Session expired. Sign in again.');
   }
 
-  const response = await fetch('/api/auth/session/refresh', {
+  const response = await fetchWithTimeout('/api/auth/session/refresh', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ refreshToken })

@@ -1,11 +1,12 @@
 import type { Profile } from '../generated/prisma';
+import { randomUUID } from 'node:crypto';
 import { ApiError } from './api-error';
+import { shouldUseLocalDemoStore } from './database-env';
 import {
   normalizeEmail,
   normalizeNullableText,
   normalizeOptionalText
 } from './input-normalization';
-import { prisma } from './prisma';
 import { isPrismaError } from './prisma-utils';
 import { assertUuid } from './request-user';
 
@@ -48,6 +49,14 @@ type ProfilePictureData = {
   profilePictureSizeBytes: number | null;
 };
 
+const demoProfilesById = new Map<string, Profile>();
+const demoProfilesByEmail = new Map<string, Profile>();
+
+async function getPrismaClient() {
+  const { prisma } = await import('./prisma');
+  return prisma;
+}
+
 function serializeProfile(profile: Profile) {
   // Convert Date objects to ISO strings so API responses are plain JSON.
   return {
@@ -65,6 +74,32 @@ function serializeProfile(profile: Profile) {
     createdAt: profile.createdAt.toISOString(),
     updatedAt: profile.updatedAt.toISOString()
   };
+}
+
+function createDemoProfile(input: {
+  id?: string;
+  email: string;
+  displayName?: string;
+}) {
+  const now = new Date();
+  const profile = {
+    id: input.id ?? randomUUID(),
+    email: input.email,
+    displayName: input.displayName ?? null,
+    profilePictureUrl: null,
+    profilePictureStorageRef: null,
+    profilePictureContentType: null,
+    profilePictureSizeBytes: null,
+    allergies: [],
+    medicalRestrictions: [],
+    neverIncludeIngredientIds: [],
+    createdAt: now,
+    updatedAt: now
+  } satisfies Profile;
+
+  demoProfilesById.set(profile.id, profile);
+  demoProfilesByEmail.set(profile.email, profile);
+  return profile;
 }
 
 function isRecord(
@@ -302,6 +337,29 @@ export async function createProfile(input: ProfileCreateInput) {
     assertUuid(id, 'id');
   }
 
+  if (shouldUseLocalDemoStore()) {
+    if (demoProfilesByEmail.has(email)) {
+      throw new ApiError(
+        409,
+        'A profile with that email already exists.'
+      );
+    }
+
+    return serializeProfile(
+      createDemoProfile({
+        ...(id ? { id } : {}),
+        email,
+        displayName: normalizeOptionalText(
+          input.displayName,
+          'displayName',
+          DISPLAY_NAME_MAX_LENGTH
+        )
+      })
+    );
+  }
+
+  const prisma = await getPrismaClient();
+
   try {
     const profile = await prisma.profile.create({
       data: {
@@ -332,6 +390,17 @@ export async function createProfile(input: ProfileCreateInput) {
 export async function readProfile(profileId: string) {
   assertUuid(profileId, 'profileId');
 
+  if (shouldUseLocalDemoStore()) {
+    const profile = demoProfilesById.get(profileId);
+
+    if (!profile) {
+      throw new ApiError(404, 'Profile not found.');
+    }
+
+    return serializeProfile(profile);
+  }
+
+  const prisma = await getPrismaClient();
   const profile = await prisma.profile.findUnique({
     where: { id: profileId }
   });
@@ -358,6 +427,34 @@ export async function findOrCreateProfileForEmail(
     'displayName',
     DISPLAY_NAME_MAX_LENGTH
   );
+
+  if (shouldUseLocalDemoStore()) {
+    const existingProfile = id
+      ? demoProfilesById.get(id) ?? demoProfilesByEmail.get(email)
+      : demoProfilesByEmail.get(email);
+
+    if (existingProfile) {
+      if (displayName) {
+        existingProfile.displayName = displayName;
+      }
+
+      existingProfile.email = email;
+      existingProfile.updatedAt = new Date();
+      demoProfilesById.set(existingProfile.id, existingProfile);
+      demoProfilesByEmail.set(email, existingProfile);
+      return serializeProfile(existingProfile);
+    }
+
+    return serializeProfile(
+      createDemoProfile({
+        ...(id ? { id } : {}),
+        email,
+        displayName
+      })
+    );
+  }
+
+  const prisma = await getPrismaClient();
 
   try {
     if (id) {
@@ -438,6 +535,19 @@ export async function updateProfileIdentity(
     );
   }
 
+  if (shouldUseLocalDemoStore()) {
+    const profile = demoProfilesById.get(profileId);
+
+    if (!profile) {
+      throw new ApiError(404, 'Profile not found.');
+    }
+
+    Object.assign(profile, data, { updatedAt: new Date() });
+    return serializeProfile(profile);
+  }
+
+  const prisma = await getPrismaClient();
+
   try {
     const profile = await prisma.profile.update({
       where: { id: profileId },
@@ -459,11 +569,38 @@ export async function updateProfileEmail(
   email: string
 ) {
   assertUuid(profileId, 'authenticated user id');
+  const normalizedEmail = normalizeEmail(email);
+
+  if (shouldUseLocalDemoStore()) {
+    const profile = demoProfilesById.get(profileId);
+
+    if (!profile) {
+      throw new ApiError(404, 'Profile not found.');
+    }
+
+    if (
+      demoProfilesByEmail.has(normalizedEmail) &&
+      demoProfilesByEmail.get(normalizedEmail)?.id !== profileId
+    ) {
+      throw new ApiError(
+        409,
+        'A profile with that email already exists.'
+      );
+    }
+
+    demoProfilesByEmail.delete(profile.email);
+    profile.email = normalizedEmail;
+    profile.updatedAt = new Date();
+    demoProfilesByEmail.set(profile.email, profile);
+    return serializeProfile(profile);
+  }
+
+  const prisma = await getPrismaClient();
 
   try {
     const profile = await prisma.profile.update({
       where: { id: profileId },
-      data: { email: normalizeEmail(email) }
+      data: { email: normalizedEmail }
     });
 
     return serializeProfile(profile);
@@ -487,6 +624,35 @@ export async function anonymizeProfileForAccountDeletion(
   profileId: string
 ) {
   assertUuid(profileId, 'authenticated user id');
+
+  if (shouldUseLocalDemoStore()) {
+    const profile = demoProfilesById.get(profileId);
+
+    if (!profile) {
+      throw new ApiError(404, 'Profile not found.');
+    }
+
+    demoProfilesByEmail.delete(profile.email);
+    profile.email = `deleted-${profileId}@deleted.local`;
+    profile.displayName = 'Deleted account';
+    profile.profilePictureUrl = null;
+    profile.profilePictureStorageRef = null;
+    profile.profilePictureContentType = null;
+    profile.profilePictureSizeBytes = null;
+    profile.allergies = [];
+    profile.medicalRestrictions = [];
+    profile.neverIncludeIngredientIds = [];
+    profile.updatedAt = new Date();
+    demoProfilesByEmail.set(profile.email, profile);
+
+    return {
+      profileId,
+      membershipsRemoved: true,
+      profileAnonymized: true
+    };
+  }
+
+  const prisma = await getPrismaClient();
 
   try {
     await prisma.$transaction([

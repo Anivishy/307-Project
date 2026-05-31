@@ -1,10 +1,11 @@
 import type { Ingredient } from '../generated/prisma';
+import { randomUUID } from 'node:crypto';
 import { ApiError } from './api-error';
+import { shouldUseLocalDemoStore } from './database-env';
 import {
   normalizeNullableText,
   normalizeRequiredText
 } from './input-normalization';
-import { prisma } from './prisma';
 import { isPrismaError } from './prisma-utils';
 import { assertUuid } from './request-user';
 
@@ -19,6 +20,13 @@ type IngredientCreateInput = {
 };
 
 type IngredientUpdateInput = Partial<IngredientCreateInput>;
+
+const demoIngredientsByOwner = new Map<string, Ingredient[]>();
+
+async function getPrismaClient() {
+  const { prisma } = await import('./prisma');
+  return prisma;
+}
 
 function normalizeCanonicalIngredientId(value: unknown) {
   const normalized = normalizeNullableText(
@@ -75,7 +83,12 @@ function serializeIngredient(ingredient: Ingredient) {
 }
 
 async function ensureProfileExists(ownerId: string) {
+  if (shouldUseLocalDemoStore()) {
+    return;
+  }
+
   // Fail with a clear 404 before relying on a database foreign-key error.
+  const prisma = await getPrismaClient();
   const profile = await prisma.profile.findUnique({
     where: { id: ownerId },
     select: { id: true }
@@ -89,6 +102,16 @@ async function ensureProfileExists(ownerId: string) {
 export async function listIngredients(ownerId: string) {
   assertUuid(ownerId, 'ownerId');
 
+  if (shouldUseLocalDemoStore()) {
+    const ingredients = demoIngredientsByOwner.get(ownerId) ?? [];
+    return ingredients
+      .toSorted((left, right) =>
+        left.name.localeCompare(right.name)
+      )
+      .map(serializeIngredient);
+  }
+
+  const prisma = await getPrismaClient();
   const ingredients = await prisma.ingredient.findMany({
     where: { ownerId },
     orderBy: [{ name: 'asc' }, { createdAt: 'asc' }]
@@ -103,6 +126,43 @@ export async function createIngredient(
 ) {
   assertUuid(ownerId, 'ownerId');
   await ensureProfileExists(ownerId);
+
+  if (shouldUseLocalDemoStore()) {
+    const ingredients = demoIngredientsByOwner.get(ownerId) ?? [];
+    const name = normalizeRequiredText(input.name, 'name', 120);
+
+    if (
+      ingredients.some(
+        (ingredient) =>
+          ingredient.name.toLowerCase() === name.toLowerCase()
+      )
+    ) {
+      throw new ApiError(
+        409,
+        'You already have an ingredient with that name.'
+      );
+    }
+
+    const now = new Date();
+    const ingredient = {
+      id: randomUUID(),
+      ownerId,
+      canonicalIngredientId: normalizeCanonicalIngredientId(
+        input.canonicalIngredientId
+      ),
+      name,
+      quantity: normalizeNullableQuantity(input.quantity),
+      unit: normalizeNullableText(input.unit, 'unit', 40),
+      notes: normalizeNullableText(input.notes, 'notes', 2_000),
+      createdAt: now,
+      updatedAt: now
+    } as Ingredient;
+    ingredients.push(ingredient);
+    demoIngredientsByOwner.set(ownerId, ingredients);
+    return serializeIngredient(ingredient);
+  }
+
+  const prisma = await getPrismaClient();
 
   try {
     const ingredient = await prisma.ingredient.create({
@@ -179,6 +239,36 @@ export async function updateIngredient(
     );
   }
 
+  if (shouldUseLocalDemoStore()) {
+    const ingredients = demoIngredientsByOwner.get(ownerId) ?? [];
+    const ingredient = ingredients.find(
+      (item) => item.id === ingredientId
+    );
+
+    if (!ingredient) {
+      throw new ApiError(404, 'Ingredient not found.');
+    }
+
+    if (
+      'name' in data &&
+      ingredients.some(
+        (item) =>
+          item.id !== ingredientId &&
+          item.name.toLowerCase() ===
+            String(data.name).toLowerCase()
+      )
+    ) {
+      throw new ApiError(
+        409,
+        'You already have an ingredient with that name.'
+      );
+    }
+
+    Object.assign(ingredient, data, { updatedAt: new Date() });
+    return serializeIngredient(ingredient);
+  }
+
+  const prisma = await getPrismaClient();
   const existingIngredient = await prisma.ingredient.findFirst({
     where: { id: ingredientId, ownerId },
     select: { id: true }
@@ -214,6 +304,21 @@ export async function deleteIngredient(
   assertUuid(ownerId, 'ownerId');
   assertUuid(ingredientId, 'ingredientId');
 
+  if (shouldUseLocalDemoStore()) {
+    const ingredients = demoIngredientsByOwner.get(ownerId) ?? [];
+    const nextIngredients = ingredients.filter(
+      (ingredient) => ingredient.id !== ingredientId
+    );
+
+    if (nextIngredients.length === ingredients.length) {
+      throw new ApiError(404, 'Ingredient not found.');
+    }
+
+    demoIngredientsByOwner.set(ownerId, nextIngredients);
+    return;
+  }
+
+  const prisma = await getPrismaClient();
   const result = await prisma.ingredient.deleteMany({
     where: { id: ingredientId, ownerId }
   });

@@ -1,7 +1,10 @@
 import { apiFetch, readJson } from './api.js';
+import { fetchWithTimeout } from './request.js';
 
 export function getGroupPreview(inviteCode) {
-  return fetch(`/api/groups/invite/${encodeURIComponent(inviteCode)}`).then(readJson);
+  return fetchWithTimeout(
+    `/api/groups/invite/${encodeURIComponent(inviteCode)}`
+  ).then(readJson);
 }
 
 export function getGroups() {
