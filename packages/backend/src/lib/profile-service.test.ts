@@ -11,11 +11,22 @@ import {
 const { prismaMock } = vi.hoisted(() => ({
   prismaMock: {
     $transaction: vi.fn(),
+    group: {
+      updateMany: vi.fn()
+    },
     groupMember: {
-      deleteMany: vi.fn()
+      deleteMany: vi.fn(),
+      updateMany: vi.fn()
     },
     ingredient: {
-      deleteMany: vi.fn()
+      deleteMany: vi.fn(),
+      updateMany: vi.fn()
+    },
+    menuRequest: {
+      updateMany: vi.fn()
+    },
+    recipeIngredient: {
+      updateMany: vi.fn()
     },
     profile: {
       findUnique: vi.fn(),
@@ -54,6 +65,9 @@ function profileRecord(overrides = {}) {
 describe('profile service auth reconciliation', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    prismaMock.$transaction.mockImplementation((callback) =>
+      callback(prismaMock)
+    );
   });
 
   it('updates an existing email profile to the Supabase auth id', async () => {
@@ -69,9 +83,35 @@ describe('profile service auth reconciliation', () => {
       email: 'Kartik@Example.com'
     });
 
+    expect(prismaMock.groupMember.updateMany).toHaveBeenCalledWith({
+      where: { profileId: oldProfileId },
+      data: { profileId: supabaseUserId }
+    });
+    expect(prismaMock.ingredient.updateMany).toHaveBeenCalledWith({
+      where: { ownerId: oldProfileId },
+      data: { ownerId: supabaseUserId }
+    });
+    expect(prismaMock.menuRequest.updateMany).toHaveBeenCalledWith({
+      where: { requestedById: oldProfileId },
+      data: { requestedById: supabaseUserId }
+    });
+    expect(
+      prismaMock.recipeIngredient.updateMany
+    ).toHaveBeenCalledWith({
+      where: { fromProfileId: oldProfileId },
+      data: { fromProfileId: supabaseUserId }
+    });
+    expect(prismaMock.group.updateMany).toHaveBeenCalledWith({
+      where: { ownerId: oldProfileId },
+      data: { ownerId: supabaseUserId }
+    });
     expect(prismaMock.profile.update).toHaveBeenCalledWith({
-      where: { email: 'kartik@example.com' },
+      where: { id: oldProfileId },
       data: { id: supabaseUserId }
+    });
+    expect(prismaMock.profile.update).toHaveBeenCalledWith({
+      where: { id: supabaseUserId },
+      data: { email: 'kartik@example.com' }
     });
     expect(prismaMock.profile.upsert).not.toHaveBeenCalled();
     expect(profile).toMatchObject({
