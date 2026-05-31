@@ -54,3 +54,12 @@ export function selectBundleCandidate(groupId, selection) {
     }
   );
 }
+
+export function generateBundleCandidate(groupId) {
+  return apiFetch(
+    `/api/groups/${groupId}/bundle-candidates/generate-one`,
+    {
+      method: 'POST'
+    }
+  );
+}

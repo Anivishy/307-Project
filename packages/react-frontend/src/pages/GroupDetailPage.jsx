@@ -1,9 +1,11 @@
 import {
   Check,
+  ChefHat,
   Copy,
   Package,
   Plus,
   SlidersHorizontal,
+  Sparkles,
   UtensilsCrossed,
   Users,
   X
@@ -12,6 +14,8 @@ import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { StatusMessage } from '../components/StatusMessage.jsx';
 import {
+  generateBundleCandidate,
+  getBundleCandidates,
   getGroup,
   getGroupMembers,
   getGroupSettings,
@@ -66,6 +70,11 @@ export function GroupDetailPage() {
   const [settingsNotice, setSettingsNotice] = useState('');
   const [customStaplesDraft, setCustomStaplesDraft] = useState([]);
   const [stapleQuery, setStapleQuery] = useState('');
+  const [bundleCandidates, setBundleCandidates] = useState(null);
+  const [isBundlesLoading, setIsBundlesLoading] = useState(false);
+  const [bundlesError, setBundlesError] = useState('');
+  const [isGeneratingOne, setIsGeneratingOne] = useState(false);
+  const [generateError, setGenerateError] = useState('');
 
   useEffect(() => {
     if (!groupId) return undefined;
@@ -102,6 +111,9 @@ export function GroupDetailPage() {
     setStapleQuery('');
     setSettingsError('');
     setSettingsNotice('');
+    setBundleCandidates(null);
+    setBundlesError('');
+    setGenerateError('');
   }, [groupId]);
 
   const groupName = groupInfo?.name ?? '…';
@@ -140,6 +152,73 @@ export function GroupDetailPage() {
     void loadGroupSettings();
     return () => { isCancelled = true; };
   }, [activeTab, groupId, isAdmin, settings]);
+
+  useEffect(() => {
+    if (!groupId || activeTab !== 'bundles' || bundleCandidates) {
+      return undefined;
+    }
+
+    let isCancelled = false;
+
+    async function loadBundleCandidates() {
+      setIsBundlesLoading(true);
+      setBundlesError('');
+      setGenerateError('');
+
+      try {
+        const payload = await getBundleCandidates(groupId);
+        if (isCancelled) return;
+        setBundleCandidates(payload.candidates ?? []);
+      } catch (error) {
+        if (!isCancelled) {
+          setBundlesError(
+            error instanceof Error
+              ? error.message
+              : 'Unable to load bundle candidates.'
+          );
+        }
+      } finally {
+        if (!isCancelled) setIsBundlesLoading(false);
+      }
+    }
+
+    void loadBundleCandidates();
+    return () => { isCancelled = true; };
+  }, [activeTab, groupId, bundleCandidates]);
+
+  async function handleGenerateOneMore() {
+    if (!groupId || isGeneratingOne) return;
+
+    setIsGeneratingOne(true);
+    setGenerateError('');
+
+    try {
+      const payload = await generateBundleCandidate(groupId);
+      const newCandidate = payload?.candidate;
+
+      if (!newCandidate) {
+        throw new Error('The server did not return a new bundle.');
+      }
+
+      // Append the new bundle without disturbing prior candidates. Guard against
+      // duplicates in case the same bundle id comes back.
+      setBundleCandidates((current) => {
+        const existing = current ?? [];
+        if (existing.some((candidate) => candidate.id === newCandidate.id)) {
+          return existing;
+        }
+        return [...existing, newCandidate];
+      });
+    } catch (error) {
+      setGenerateError(
+        error instanceof Error
+          ? error.message
+          : 'Unable to generate another bundle.'
+      );
+    } finally {
+      setIsGeneratingOne(false);
+    }
+  }
 
   async function saveSettingsPatch(updates, successMessage) {
     if (!groupId) return;
@@ -312,6 +391,13 @@ export function GroupDetailPage() {
           >
             <UtensilsCrossed size={16} /> Recipes
           </button>
+          <button
+            className={`gd-tab ${activeTab === 'bundles' ? 'gd-tab--active' : ''}`}
+            type="button"
+            onClick={() => setActiveTab('bundles')}
+          >
+            <ChefHat size={16} /> Bundles
+          </button>
           {isAdmin && (
             <button
               className={`gd-tab ${activeTab === 'settings' ? 'gd-tab--active' : ''}`}
@@ -414,6 +500,112 @@ export function GroupDetailPage() {
               <UtensilsCrossed size={36} style={{ opacity: 0.3 }} />
               <p>Recipes coming soon.</p>
             </div>
+          </section>
+        )}
+
+        {/* BUNDLES TAB */}
+        {activeTab === 'bundles' && (
+          <section className="gd-tab-content">
+            <div className="section-heading" style={{ marginBottom: '0.5rem' }}>
+              <h2>Meal Bundles</h2>
+              {Array.isArray(bundleCandidates) && (
+                <span style={{ fontSize: '0.85rem', opacity: 0.6 }}>
+                  {bundleCandidates.length} candidate
+                  {bundleCandidates.length !== 1 ? 's' : ''}
+                </span>
+              )}
+            </div>
+
+            {isBundlesLoading ? (
+              <StatusMessage
+                type="loading"
+                title="Loading bundles"
+                message="Generating meal bundles from the group pantry…"
+              />
+            ) : bundlesError ? (
+              <StatusMessage
+                type="error"
+                title="Bundles unavailable"
+                message={bundlesError}
+              />
+            ) : (
+              <>
+                {bundleCandidates && bundleCandidates.length === 0 ? (
+                  <div className="gd-empty-tab">
+                    <ChefHat size={36} style={{ opacity: 0.3 }} />
+                    <p>No bundle candidates available yet.</p>
+                  </div>
+                ) : (
+                  <div className="bundle-list">
+                    {(bundleCandidates ?? []).map((candidate) => (
+                      <article
+                        className={`bundle-card surface-card ${
+                          candidate.isSelected ? 'bundle-card--selected' : ''
+                        }`}
+                        key={candidate.id}
+                      >
+                        <div className="bundle-card__head">
+                          <h3>{candidate.title}</h3>
+                          {candidate.isSelected && (
+                            <span className="bundle-card__badge">
+                              <Check size={14} aria-hidden="true" /> Selected
+                            </span>
+                          )}
+                        </div>
+
+                        {Array.isArray(candidate.courses) &&
+                          candidate.courses.length > 0 && (
+                            <p className="bundle-card__courses">
+                              {candidate.courses
+                                .map((course) => course.title)
+                                .join(' · ')}
+                            </p>
+                          )}
+
+                        {candidate.rationale && (
+                          <p className="bundle-card__rationale">
+                            {candidate.rationale}
+                          </p>
+                        )}
+
+                        {Array.isArray(candidate.ingredientList) &&
+                          candidate.ingredientList.length > 0 && (
+                            <ul className="bundle-card__ingredients">
+                              {candidate.ingredientList.map((ingredient) => (
+                                <li key={ingredient.ingredientId}>
+                                  <span>{ingredient.name}</span>
+                                  <span className="bundle-card__ingredient-qty">
+                                    {ingredient.quantity} {ingredient.unit}
+                                  </span>
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                      </article>
+                    ))}
+                  </div>
+                )}
+
+                {isAdmin && (
+                  <div className="bundle-generate-row">
+                    <button
+                      className="button"
+                      type="button"
+                      disabled={isGeneratingOne}
+                      onClick={handleGenerateOneMore}
+                    >
+                      <Sparkles size={18} aria-hidden="true" />
+                      {isGeneratingOne ? 'Generating…' : 'Generate 1 More'}
+                    </button>
+                    {generateError && (
+                      <p className="settings-status settings-status--error">
+                        {generateError}
+                      </p>
+                    )}
+                  </div>
+                )}
+              </>
+            )}
           </section>
         )}
 
