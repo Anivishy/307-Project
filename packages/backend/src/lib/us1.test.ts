@@ -12,28 +12,36 @@ import {
 import { findOrCreateProfileForEmail } from './profile-service';
 import { getRequestUserId } from './request-user';
 import {
+  deleteSupabaseAuthUser,
   getSupabaseUserFromAccessToken,
   hasSupabaseAuthUserWithEmail,
   refreshSupabaseSession,
   requestSupabaseEmailOtp,
   requestSupabaseMagicLink,
+  revokeSupabaseSessions,
   signInSupabaseWithPassword,
   signUpSupabaseWithPassword,
+  updateSupabaseUser,
   verifySupabaseEmailOtp
 } from './supabase-auth';
 
 vi.mock('./profile-service', () => ({
-  findOrCreateProfileForEmail: vi.fn()
+  anonymizeProfileForAccountDeletion: vi.fn(),
+  findOrCreateProfileForEmail: vi.fn(),
+  updateProfileEmail: vi.fn()
 }));
 
 vi.mock('./supabase-auth', () => ({
+  deleteSupabaseAuthUser: vi.fn(),
   getSupabaseUserFromAccessToken: vi.fn(),
   hasSupabaseAuthUserWithEmail: vi.fn(),
   refreshSupabaseSession: vi.fn(),
   requestSupabaseEmailOtp: vi.fn(),
   requestSupabaseMagicLink: vi.fn(),
+  revokeSupabaseSessions: vi.fn(),
   signInSupabaseWithPassword: vi.fn(),
   signUpSupabaseWithPassword: vi.fn(),
+  updateSupabaseUser: vi.fn(),
   verifySupabaseEmailOtp: vi.fn()
 }));
 
@@ -41,6 +49,10 @@ const profile = {
   id: '11111111-1111-4111-8111-111111111111',
   email: 'kartik@example.com',
   displayName: 'Kartik',
+  profilePictureUrl: null,
+  profilePictureStorageRef: null,
+  profilePictureContentType: null,
+  profilePictureSizeBytes: null,
   allergies: [],
   medicalRestrictions: [],
   neverIncludeIngredientIds: [],
@@ -62,6 +74,9 @@ describe('US1 Supabase email OTP auth', () => {
     vi.mocked(verifySupabaseEmailOtp).mockReset();
     vi.mocked(refreshSupabaseSession).mockReset();
     vi.mocked(getSupabaseUserFromAccessToken).mockReset();
+    vi.mocked(updateSupabaseUser).mockReset();
+    vi.mocked(revokeSupabaseSessions).mockReset();
+    vi.mocked(deleteSupabaseAuthUser).mockReset();
   });
 
   it('creates an account with email and password through Supabase Auth', async () => {

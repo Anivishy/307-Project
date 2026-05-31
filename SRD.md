@@ -18,6 +18,7 @@ PROJECT ASSETS:
 DOCUMENT HISTORY: 	
 LAST DATE CHANGED: 5/04/26 	WHO: Vinayak WHAT WAS CHANGED: Added product vision
 LAST DATE CHANGED: 5/27/26 	WHO: Vinayak WHAT WAS CHANGED: Added US15: Seperating profile -> pantry + profile, added corresponding functional requirements
+LAST DATE CHANGED: 5/28/26 	WHO: Leon WHAT WAS CHANGED: Added US16 account management functional and non-functional requirements
 ________________________________________ 
 
 Recipe OS
@@ -72,6 +73,7 @@ USER STORIES FOLLOW THE FORMAT: "AS A [TYPE OF USER], I WANT TO [ACTION] SO THAT
 - US13 — Email notifications
 - US14 — Admin concurrency
 - US15 — Separate Pantry and Profile page workflows
+- US16 — Manage account settings and account deletion
 
 US-1 As a new user, I want to sign in with a one-time-password sent via email so that my pantry and preferences persist across sessions.
 
@@ -102,6 +104,8 @@ US-13 As a member, I want to receive an email notification when an admin selects
 US-14 As an admin, I want to be warned about previously generated potential meal sets before I select so that I do not accidentally overwrite another admin's selection or double-decrement pantry quantities.
 
 US-15 As a user, I want pantry management to be separate from profile settings so that I can quickly update ingredients without navigating through unrelated personal preference fields.
+
+US-16 As a user, I want to be able to change my password, change my name, change my profile picture, change my email, and delete my account so that I can keep my account accurate and control access to my data.
 
 3.	FUNCTIONAL REQUIREMENTS
 
@@ -432,6 +436,38 @@ FR15.5 The Pantry page shall read and write the same authenticated user's pantry
 
 FR15.6 Page separation behavior shall be covered by UI or integration tests.
 
+⸻
+
+FR16.1 The system shall provide account-management controls from the Profile page or a dedicated account settings area.
+
+FR16.2 The system shall allow an authenticated user to update their display name.
+
+FR16.3 The system shall persist updated display names and show them anywhere the user's profile identity appears.
+
+FR16.4 The system shall allow an authenticated user to add, change, or remove their profile picture.
+
+FR16.5 The system shall validate profile picture file type and size before saving.
+
+FR16.6 The system shall store a profile picture URL or storage reference on the user's profile.
+
+FR16.7 The system shall allow an authenticated user to initiate an email address change.
+
+FR16.8 The system shall verify the new email address with an OTP, magic link, or equivalent confirmation step before applying the change.
+
+FR16.9 The system shall prevent email changes to invalid email addresses or email addresses already used by another account.
+
+FR16.10 The system shall allow a password-authenticated user to change their password after entering the current password or completing recent re-authentication.
+
+FR16.11 The system shall enforce the agreed password strength rules before accepting a new password.
+
+FR16.12 The system shall revoke or refresh active sessions as appropriate after sensitive account changes such as password or email updates.
+
+FR16.13 The system shall allow an authenticated user to delete their account only after explicit confirmation and recent re-authentication.
+
+FR16.14 Account deletion shall revoke active sessions, remove group memberships, and delete or anonymize profile-linked data according to the final data-retention policy.
+
+FR16.15 Account-management updates, sensitive-change verification, and account deletion shall be covered by API and UI tests.
+
 5. NON-FUNCTIONAL REQUIREMENTS
 -	INTEGRITY: The system shall validate user input and handle errors without crashing.
 -	SECURITY: Passwords shall be hashed using bcrypt, and sensitive data stored in environment variables.
@@ -439,6 +475,18 @@ FR15.6 Page separation behavior shall be covered by UI or integration tests.
 -	PERFORMANCE: The system shall respond quickly, including menu generation within a reasonable time.
 -	RELIABILITY: The system shall operate consistently without data loss or frequent failures.
 -	SCALABILITY: The system shall support increasing users and groups over time.
+
+US16 ACCOUNT MANAGEMENT NON-FUNCTIONAL REQUIREMENTS
+
+NFR16.1 Sensitive account operations shall require an authenticated session and recent re-authentication to reduce account takeover risk.
+
+NFR16.2 Passwords, verification tokens, and account-deletion confirmation data shall never be stored or logged in plaintext.
+
+NFR16.3 Profile picture uploads shall be limited to safe image formats and reasonable file sizes to protect storage and page performance.
+
+NFR16.4 Account deletion shall preserve database referential integrity so shared group history does not break when a user leaves or deletes an account.
+
+NFR16.5 Account-management forms shall provide clear validation errors, success states, and irreversible-action warnings.
 
 5. SYSTEM ARCHITECTURE
 -	REST ENDPOINTS: (LIST METHOD | URL | DESCRIPTION)
@@ -459,4 +507,3 @@ ID	REQUIREMENT	LINE OF CODE
 9.	AI USAGE & DISCLOSURE (MANDATORY)
 -	MODEL(S) USED: [E.G., CLAUDE 3.5, GPT-4O]
 -	PROMPTS USED DURING CODING: 
-

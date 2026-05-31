@@ -55,7 +55,7 @@ function getSupabaseServiceRoleConfig() {
   if (!secretKey) {
     throw new ApiError(
       500,
-      'Supabase Auth duplicate-email checks require SUPABASE_SECRET_KEY.'
+      'Supabase Auth admin operations require SUPABASE_SECRET_KEY.'
     );
   }
 
@@ -364,4 +364,58 @@ export async function refreshSupabaseSession(
   );
 
   return validateSession(await readJson(response));
+}
+
+export async function updateSupabaseUser(
+  accessToken: string,
+  updates: {
+    email?: string;
+    password?: string;
+    data?: Record<string, unknown>;
+  }
+) {
+  const response = await supabaseAuthFetch(
+    '/user',
+    {
+      method: 'PUT',
+      body: JSON.stringify(updates)
+    },
+    accessToken
+  );
+
+  return validateUser(await readJson(response));
+}
+
+export async function revokeSupabaseSessions(
+  accessToken: string,
+  scope: 'global' | 'local' | 'others' = 'global'
+) {
+  await supabaseAuthFetch(
+    `/logout?scope=${encodeURIComponent(scope)}`,
+    { method: 'POST' },
+    accessToken
+  );
+}
+
+export async function deleteSupabaseAuthUser(userId: string) {
+  const config = getSupabaseServiceRoleConfig();
+  const response = await fetch(
+    `${config.url}${AUTH_BASE_PATH}/admin/users/${encodeURIComponent(userId)}`,
+    {
+      method: 'DELETE',
+      headers: {
+        apikey: config.secretKey,
+        authorization: `Bearer ${config.secretKey}`
+      }
+    }
+  );
+
+  if (!response.ok) {
+    const payload = await readJson(response);
+    const message = getSupabaseErrorMessage(payload);
+    throw new ApiError(
+      getAuthErrorStatus(response, message),
+      message
+    );
+  }
 }

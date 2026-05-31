@@ -1,8 +1,7 @@
 import {
   render,
   screen,
-  waitFor,
-  within
+  waitFor
 } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
@@ -116,7 +115,7 @@ describe('GroupsPage', () => {
     );
   }
 
-  it('opens creation from the top plus and confirms invite code copies', async () => {
+  it('shows inline group controls and confirms invite code copies', async () => {
     const user = userEvent.setup();
 
     renderGroupsPage();
@@ -124,18 +123,16 @@ describe('GroupsPage', () => {
     expect(
       await screen.findByText('Dorm Dinner')
     ).toBeInTheDocument();
-
-    await user.click(screen.getByLabelText(/^create group$/i));
-
     expect(
-      screen.getByRole('dialog', { name: /create group/i })
+      screen.getByRole('heading', { name: /create group/i })
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', { name: /join group/i })
     ).toBeInTheDocument();
     expect(screen.getByText('DORMD-ABCD')).toBeInTheDocument();
 
     await user.click(
-      screen.getByRole('button', {
-        name: /copy invite code for dorm dinner/i
-      })
+      screen.getByRole('button', { name: /^code$/i })
     );
 
     expect(
@@ -152,31 +149,16 @@ describe('GroupsPage', () => {
     renderGroupsPage();
 
     await screen.findByText('Dorm Dinner');
-    await user.click(screen.getByLabelText(/^create group$/i));
-
-    const dialog = screen.getByRole('dialog', {
-      name: /create group/i
-    });
     await user.type(
-      within(dialog).getByLabelText(/group name/i),
+      screen.getByLabelText(/group name/i),
       'Apartment Dinner'
     );
-    await user.click(
-      within(dialog).getByLabelText(
-        /allow missing ingredients/i
-      )
-    );
     await user.type(
-      within(dialog).getByLabelText(/custom staple/i),
-      'Rice'
+      screen.getByLabelText(/description/i),
+      'New shared pantry group.'
     );
     await user.click(
-      within(dialog).getByRole('button', {
-        name: /add staple/i
-      })
-    );
-    await user.click(
-      within(dialog).getByRole('button', {
+      screen.getByRole('button', {
         name: /^create group$/i
       })
     );
@@ -196,20 +178,19 @@ describe('GroupsPage', () => {
 
     expect(JSON.parse(createCall[1].body)).toEqual({
       name: 'Apartment Dinner',
-      description: 'New shared pantry group.',
-      allowMissingIngredients: true,
-      staplesEnabled: true,
-      customStaples: ['rice']
+      description: 'New shared pantry group.'
     });
     expect(
-      await screen.findByText('APART-WXYZ')
-    ).toBeInTheDocument();
+      await screen.findAllByText('APART-WXYZ')
+    ).toHaveLength(2);
     expect(
-      screen.getByText(/share invite code APART-WXYZ/i)
+      screen.getByRole('heading', {
+        name: /share "apartment dinner"/i
+      })
     ).toBeInTheDocument();
   });
 
-  it('joins by invite code with a role request', async () => {
+  it('joins by invite code', async () => {
     const user = userEvent.setup();
 
     fetchMock.mockImplementation(async (input) => {
@@ -244,23 +225,12 @@ describe('GroupsPage', () => {
     renderGroupsPage();
 
     await screen.findByText('Dorm Dinner');
-    await user.click(
-      screen.getByRole('button', { name: /join group/i })
-    );
-
-    const dialog = screen.getByRole('dialog', {
-      name: /join group/i
-    });
     await user.type(
-      within(dialog).getByLabelText(/invite code/i),
+      screen.getByLabelText(/invite code/i),
       'proje-1234'
     );
-    await user.selectOptions(
-      within(dialog).getByLabelText(/role request/i),
-      'admin'
-    );
     await user.click(
-      within(dialog).getByRole('button', {
+      screen.getByRole('button', {
         name: /join group/i
       })
     );
@@ -277,14 +247,10 @@ describe('GroupsPage', () => {
     );
 
     expect(JSON.parse(joinCall[1].body)).toEqual({
-      inviteCode: 'PROJE-1234',
-      roleRequest: 'admin'
+      inviteCode: 'PROJE-1234'
     });
     expect(
       await screen.findByText('Project Dinner')
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText(/admin access requested/i)
     ).toBeInTheDocument();
   });
 });
