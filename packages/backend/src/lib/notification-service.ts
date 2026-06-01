@@ -1,6 +1,10 @@
 import type { Notification } from '../generated/prisma';
-import { prisma } from './prisma';
 import { assertUuid } from './request-user';
+
+async function getPrismaClient() {
+  const { prisma } = await import('./prisma');
+  return prisma;
+}
 
 function serializeNotification(notification: Notification) {
   return {
@@ -21,6 +25,7 @@ function serializeNotification(notification: Notification) {
 export async function listUserNotifications(profileId: string) {
   assertUuid(profileId, 'authenticated user id');
 
+  const prisma = await getPrismaClient();
   const [notifications, unreadCount] = await Promise.all([
     prisma.notification.findMany({
       where: { recipientId: profileId },
@@ -41,6 +46,7 @@ export async function listUserNotifications(profileId: string) {
 export async function markUserNotificationsRead(profileId: string) {
   assertUuid(profileId, 'authenticated user id');
 
+  const prisma = await getPrismaClient();
   const result = await prisma.notification.updateMany({
     where: { recipientId: profileId, readAt: null },
     data: { readAt: new Date() }
