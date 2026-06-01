@@ -20,6 +20,12 @@ export function replaceUserConstraints(
     allergies: input.allergies ?? [],
     medicalRestrictions: input.medicalRestrictions ?? [],
     neverIncludeIngredientIds: input.neverIncludeIngredientIds ?? [],
+    diets: input.diets ?? [],
+    intolerances: input.intolerances ?? [],
+    preferredCuisines: input.preferredCuisines ?? [],
+    excludedCuisines: input.excludedCuisines ?? [],
+    dislikedIngredients: input.dislikedIngredients ?? [],
+    spiceLevel: input.spiceLevel ?? null,
     updatedAt: nowIso(),
   };
 

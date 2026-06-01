@@ -1,5 +1,5 @@
 import { Bell, Plus } from "lucide-react";
-import { GlassIconButton } from "./GlassIconButton.jsx";
+import { GlassIconButton } from "@/components/GlassIconButton.jsx";
 
 export function PageHeader({ eyebrow, title, subtitle, action = "bell" }) {
   const ActionIcon = action === "plus" ? Plus : Bell;

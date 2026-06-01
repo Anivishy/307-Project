@@ -3,8 +3,8 @@ import { Outlet, useNavigate } from 'react-router-dom';
 import {
   clearSession,
   getSavedSession
-} from '../lib/session.js';
-import { BottomNav } from './BottomNav.jsx';
+} from '@/lib/session.js';
+import { BottomNav } from '@/components/BottomNav.jsx';
 
 export function AppLayout() {
   const navigate = useNavigate();

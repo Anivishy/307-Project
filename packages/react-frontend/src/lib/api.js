@@ -1,32 +1,10 @@
 import {
   ensureAuthSession,
   refreshAuthSession
-} from './authApi.js';
+} from '@/lib/authApi.js';
+import { readJson } from '@/lib/httpResponse.js';
 
-export async function readJson(response) {
-  const text = await response.text();
-  let payload = null;
-
-  if (text) {
-    try {
-      payload = JSON.parse(text);
-    } catch {
-      if (response.ok) {
-        throw new Error('Received an invalid response from the server.');
-      }
-    }
-  }
-
-  if (!response.ok) {
-    throw new Error(
-      payload?.error?.message ??
-        payload?.error ??
-        'Request failed.'
-    );
-  }
-
-  return payload;
-}
+export { ApiRequestError, readJson } from '@/lib/httpResponse.js';
 
 export async function apiFetch(path, init = {}) {
   const session = await ensureAuthSession();

@@ -1,9 +1,9 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { completeMagicLinkSession } from '../lib/authApi.js';
-import { parseMagicLinkCallback } from '../lib/authCallback.js';
-import { AuthCallbackPage } from './AuthCallbackPage.jsx';
+import { completeMagicLinkSession } from '@/lib/authApi.js';
+import { parseMagicLinkCallback } from '@/lib/authCallback.js';
+import { AuthCallbackPage } from '@/pages/AuthCallbackPage.jsx';
 
 vi.mock('../lib/authApi.js', () => ({
   completeMagicLinkSession: vi.fn()
