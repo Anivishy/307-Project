@@ -1,3 +1,12 @@
+export class ApiRequestError extends Error {
+  constructor(status, message, payload = null) {
+    super(message);
+    this.name = 'ApiRequestError';
+    this.status = status;
+    this.payload = payload;
+  }
+}
+
 function formatStatus(response) {
   return [response.status, response.statusText]
     .filter(Boolean)
@@ -61,7 +70,11 @@ export async function readJson(response) {
   const payload = await parseJsonResponse(response);
 
   if (!response.ok) {
-    throw new Error(getApiErrorMessage(payload));
+    throw new ApiRequestError(
+      response.status,
+      getApiErrorMessage(payload),
+      payload
+    );
   }
 
   return payload;

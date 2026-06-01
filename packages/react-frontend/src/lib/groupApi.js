@@ -1,4 +1,4 @@
-import { apiFetch, readJson } from './api.js';
+import { apiFetch, readJson } from '@/lib/api.js';
 
 export function getGroupPreview(inviteCode) {
   return fetch(`/api/groups/invite/${encodeURIComponent(inviteCode)}`).then(readJson);
@@ -43,6 +43,23 @@ export function updateGroupSettings(groupId, updates) {
 
 export function getBundleCandidates(groupId) {
   return apiFetch(`/api/groups/${groupId}/bundle-candidates`);
+}
+
+export function generateBundleCandidates(groupId, request) {
+  return apiFetch(`/api/groups/${groupId}/bundle-candidates`, {
+    method: 'POST',
+    body: JSON.stringify(request)
+  });
+}
+
+export function generateOneMoreBundleCandidate(groupId) {
+  return apiFetch(`/api/groups/${groupId}/bundle-candidates/more`, {
+    method: 'POST'
+  });
+}
+
+export function getSpoonacularMode() {
+  return apiFetch('/api/spoonacular/mode');
 }
 
 export function selectBundleCandidate(groupId, selection) {

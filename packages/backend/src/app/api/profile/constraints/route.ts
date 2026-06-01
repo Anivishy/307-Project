@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 import { ApiError } from '@/lib/api-error';
-import { findMissingIngredientIds } from '@/lib/constraints/ingredients';
+import { findMissingCatalogIngredientIds } from '@/lib/ingredient-catalog-service';
 import { parseConstraintsPayload } from '@/lib/constraints/normalize';
 import type { UserConstraintsInput } from '@/lib/constraints/types';
 import { getCurrentUserId } from '@/lib/http/auth';
@@ -11,6 +11,11 @@ import {
   readProfileConstraints,
   replaceProfileConstraints
 } from '@/lib/profile-constraints-service';
+import {
+  listSpoonacularCuisineValues,
+  listSpoonacularDietValues,
+  listSpoonacularIntoleranceValues
+} from '@/lib/spoonacular/definitions';
 
 async function readJson(
   request: NextRequest
@@ -38,10 +43,10 @@ async function requireUserId(
   return userId;
 }
 
-function validateNeverInclude(
+async function validateNeverInclude(
   input: UserConstraintsInput
-): NextResponse | null {
-  const missingIngredientIds = findMissingIngredientIds(
+): Promise<NextResponse | null> {
+  const missingIngredientIds = await findMissingCatalogIngredientIds(
     input.neverIncludeIngredientIds ?? []
   );
 
@@ -54,6 +59,60 @@ function validateNeverInclude(
     'invalidIngredientIds',
     'neverIncludeIngredientIds contains ids that do not exist.',
     { invalidIngredientIds: missingIngredientIds }
+  );
+}
+
+function findUnsupportedValues(
+  values: string[] | undefined,
+  supportedValues: string[]
+) {
+  if (!values || values.length === 0) {
+    return [];
+  }
+
+  const supported = new Set(supportedValues);
+  return values.filter((value) => !supported.has(value));
+}
+
+function validateSpoonacularDefinitions(
+  input: UserConstraintsInput
+): NextResponse | null {
+  const invalidDiets = findUnsupportedValues(
+    input.diets,
+    listSpoonacularDietValues()
+  );
+  const invalidIntolerances = findUnsupportedValues(
+    input.intolerances,
+    listSpoonacularIntoleranceValues()
+  );
+  const invalidPreferredCuisines = findUnsupportedValues(
+    input.preferredCuisines,
+    listSpoonacularCuisineValues()
+  );
+  const invalidExcludedCuisines = findUnsupportedValues(
+    input.excludedCuisines,
+    listSpoonacularCuisineValues()
+  );
+
+  if (
+    invalidDiets.length === 0 &&
+    invalidIntolerances.length === 0 &&
+    invalidPreferredCuisines.length === 0 &&
+    invalidExcludedCuisines.length === 0
+  ) {
+    return null;
+  }
+
+  return errorResponse(
+    400,
+    'invalidSpoonacularDefinitions',
+    'Profile preferences contain unsupported Spoonacular definition values.',
+    {
+      invalidDiets,
+      invalidIntolerances,
+      invalidPreferredCuisines,
+      invalidExcludedCuisines
+    }
   );
 }
 
@@ -113,10 +172,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const ingredientError = validateNeverInclude(parsed.value);
+    const ingredientError = await validateNeverInclude(parsed.value);
 
     if (ingredientError) {
       return ingredientError;
+    }
+
+    const definitionError = validateSpoonacularDefinitions(parsed.value);
+
+    if (definitionError) {
+      return definitionError;
     }
 
     return NextResponse.json({
@@ -154,10 +219,16 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
-    const ingredientError = validateNeverInclude(parsed.value);
+    const ingredientError = await validateNeverInclude(parsed.value);
 
     if (ingredientError) {
       return ingredientError;
+    }
+
+    const definitionError = validateSpoonacularDefinitions(parsed.value);
+
+    if (definitionError) {
+      return definitionError;
     }
 
     return NextResponse.json({

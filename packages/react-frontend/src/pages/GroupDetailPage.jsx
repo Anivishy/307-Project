@@ -12,15 +12,21 @@ import {
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { StatusMessage } from '../components/StatusMessage.jsx';
+import { StatusMessage } from '@/components/StatusMessage.jsx';
+import { BundleCandidateCard } from '@/components/BundleCandidateCard.jsx';
+import { ApiRequestError } from '@/lib/api.js';
 import {
-  generateBundleCandidate,
+  generateBundleCandidates,
+  generateOneMoreBundleCandidate,
   getBundleCandidates,
   getGroup,
   getGroupMembers,
   getGroupSettings,
+  getSpoonacularMode,
+  selectBundleCandidate,
   updateGroupSettings
-} from '../lib/groupApi.js';
+} from '@/lib/groupApi.js';
+import { searchIngredientCatalog } from '@/lib/pantryApi.js';
 
 function buildInviteLink(inviteCode) {
   return `${window.location.origin}/join/${inviteCode}`;
@@ -33,6 +39,25 @@ function initials(member) {
 
 function isAdminRole(role) {
   return ['admin', 'owner'].includes(String(role ?? '').toLowerCase());
+}
+
+function getGenerationErrorMessage(error, fallback) {
+  if (error instanceof ApiRequestError && error.status === 503) {
+    return 'Spoonacular API quota exceeded. Use mock generation for daily dev (npm run dev or set SPOONACULAR_MOCK_GENERATION=true), or try again later.';
+  }
+
+  return error instanceof Error ? error.message : fallback;
+}
+
+function buildGenerationProgress(courseTypes, labelPrefix = 'Searching') {
+  const types =
+    courseTypes.length > 0 ? courseTypes : ['main', 'side'];
+
+  return types.map((courseType, index) => ({
+    courseType,
+    label: `${labelPrefix} ${courseType}`,
+    status: index === 0 ? 'loading' : 'pending'
+  }));
 }
 
 function CopyButton({ text, label }) {
@@ -70,11 +95,22 @@ export function GroupDetailPage() {
   const [settingsNotice, setSettingsNotice] = useState('');
   const [customStaplesDraft, setCustomStaplesDraft] = useState([]);
   const [stapleQuery, setStapleQuery] = useState('');
-  const [bundleCandidates, setBundleCandidates] = useState(null);
-  const [isBundlesLoading, setIsBundlesLoading] = useState(false);
-  const [bundlesError, setBundlesError] = useState('');
-  const [isGeneratingOne, setIsGeneratingOne] = useState(false);
-  const [generateError, setGenerateError] = useState('');
+  const [stapleSuggestions, setStapleSuggestions] = useState([]);
+  const [isStapleSearching, setIsStapleSearching] = useState(false);
+  const [bundlePayload, setBundlePayload] = useState(null);
+  const [isCandidatesLoading, setIsCandidatesLoading] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [generationError, setGenerationError] = useState('');
+  const [generationNotice, setGenerationNotice] = useState('');
+  const [spoonacularMode, setSpoonacularMode] = useState(null);
+  const [generationForm, setGenerationForm] = useState({
+    cuisine: '',
+    query: '',
+    courseTypes: ['main', 'side']
+  });
+  const [selectingBundleId, setSelectingBundleId] = useState('');
+  const [staleSelection, setStaleSelection] = useState(null);
+  const [generationProgress, setGenerationProgress] = useState(null);
 
   useEffect(() => {
     if (!groupId) return undefined;
@@ -111,9 +147,9 @@ export function GroupDetailPage() {
     setStapleQuery('');
     setSettingsError('');
     setSettingsNotice('');
-    setBundleCandidates(null);
-    setBundlesError('');
-    setGenerateError('');
+    setBundlePayload(null);
+    setGenerationError('');
+    setGenerationNotice('');
   }, [groupId]);
 
   const groupName = groupInfo?.name ?? '…';
@@ -154,70 +190,311 @@ export function GroupDetailPage() {
   }, [activeTab, groupId, isAdmin, settings]);
 
   useEffect(() => {
-    if (!groupId || activeTab !== 'bundles' || bundleCandidates) {
+    const trimmedQuery = stapleQuery.trim();
+
+    if (!trimmedQuery) {
+      setStapleSuggestions([]);
+      return undefined;
+    }
+
+    let isCurrentSearch = true;
+    const timeoutId = window.setTimeout(() => {
+      setIsStapleSearching(true);
+      searchIngredientCatalog(trimmedQuery)
+        .then((ingredients) => {
+          if (isCurrentSearch) {
+            setStapleSuggestions(ingredients);
+          }
+        })
+        .catch(() => {
+          if (isCurrentSearch) {
+            setStapleSuggestions([]);
+          }
+        })
+        .finally(() => {
+          if (isCurrentSearch) {
+            setIsStapleSearching(false);
+          }
+        });
+    }, 250);
+
+    return () => {
+      isCurrentSearch = false;
+      window.clearTimeout(timeoutId);
+    };
+  }, [stapleQuery]);
+
+  useEffect(() => {
+    if (!groupId || activeTab !== 'recipes') {
       return undefined;
     }
 
     let isCancelled = false;
 
-    async function loadBundleCandidates() {
-      setIsBundlesLoading(true);
-      setBundlesError('');
-      setGenerateError('');
+    async function loadCandidates() {
+      setIsCandidatesLoading(true);
+      setGenerationError('');
 
       try {
-        const payload = await getBundleCandidates(groupId);
-        if (isCancelled) return;
-        setBundleCandidates(payload.candidates ?? []);
+        const [payload, modePayload] = await Promise.all([
+          getBundleCandidates(groupId),
+          getSpoonacularMode().catch(() => null)
+        ]);
+
+        if (!isCancelled) {
+          setBundlePayload(payload);
+          setSpoonacularMode(modePayload);
+        }
       } catch (error) {
         if (!isCancelled) {
-          setBundlesError(
-            error instanceof Error
-              ? error.message
-              : 'Unable to load bundle candidates.'
+          setGenerationError(
+            getGenerationErrorMessage(
+              error,
+              'Unable to load bundle candidates.'
+            )
           );
         }
       } finally {
-        if (!isCancelled) setIsBundlesLoading(false);
+        if (!isCancelled) {
+          setIsCandidatesLoading(false);
+        }
       }
     }
 
-    void loadBundleCandidates();
-    return () => { isCancelled = true; };
-  }, [activeTab, groupId, bundleCandidates]);
+    void loadCandidates();
+    return () => {
+      isCancelled = true;
+    };
+  }, [activeTab, groupId]);
 
-  async function handleGenerateOneMore() {
-    if (!groupId || isGeneratingOne) return;
+  useEffect(() => {
+    if (!isGenerating || !generationProgress?.length) {
+      return undefined;
+    }
 
-    setIsGeneratingOne(true);
-    setGenerateError('');
+    const intervalId = window.setInterval(() => {
+      setGenerationProgress((current) => {
+        if (!current?.length) {
+          return current;
+        }
+
+        const loadingIndex = current.findIndex(
+          (item) => item.status === 'loading'
+        );
+        const pendingIndex = current.findIndex(
+          (item) => item.status === 'pending'
+        );
+
+        if (loadingIndex === -1 && pendingIndex >= 0) {
+          return current.map((item, index) =>
+            index === pendingIndex
+              ? { ...item, status: 'loading' }
+              : item
+          );
+        }
+
+        if (loadingIndex >= 0) {
+          return current.map((item, index) => {
+            if (index === loadingIndex) {
+              return { ...item, status: 'done' };
+            }
+
+            if (index === loadingIndex + 1 && item.status === 'pending') {
+              return { ...item, status: 'loading' };
+            }
+
+            return item;
+          });
+        }
+
+        return current;
+      });
+    }, 900);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [generationProgress, isGenerating]);
+
+  async function reloadCandidates() {
+    if (!groupId) {
+      return null;
+    }
+
+    const payload = await getBundleCandidates(groupId);
+    setBundlePayload(payload);
+    setStaleSelection(null);
+    return payload;
+  }
+
+  async function handleSelectBundle(candidate, { force = false } = {}) {
+    if (!groupId || !bundlePayload) {
+      return;
+    }
+
+    setSelectingBundleId(candidate.id);
+    setGenerationError('');
+    setGenerationNotice('');
+    setStaleSelection(null);
 
     try {
-      const payload = await generateBundleCandidate(groupId);
-      const newCandidate = payload?.candidate;
+      if (!force) {
+        const freshPayload = await getBundleCandidates(groupId);
 
-      if (!newCandidate) {
-        throw new Error('The server did not return a new bundle.');
+        if (freshPayload.candidateSetId !== bundlePayload.candidateSetId) {
+          setStaleSelection({
+            candidate,
+            message:
+              'This candidate set may be stale. Refresh to load the latest set, or confirm to select anyway.'
+          });
+          return;
+        }
       }
 
-      // Append the new bundle without disturbing prior candidates. Guard against
-      // duplicates in case the same bundle id comes back.
-      setBundleCandidates((current) => {
-        const existing = current ?? [];
-        if (existing.some((candidate) => candidate.id === newCandidate.id)) {
-          return existing;
-        }
-        return [...existing, newCandidate];
+      await selectBundleCandidate(groupId, {
+        bundleId: candidate.id,
+        pantrySnapshotVersion: bundlePayload.pantrySnapshotVersion,
+        activeBundleVersion: bundlePayload.activeBundleVersion,
+        ...(force ? { force: true } : {})
       });
+
+      await reloadCandidates();
+      setGenerationNotice(`Selected "${candidate.title}" as the active bundle.`);
     } catch (error) {
-      setGenerateError(
+      if (
+        error instanceof ApiRequestError &&
+        error.status === 409 &&
+        !force
+      ) {
+        setStaleSelection({
+          candidate,
+          message: error.message
+        });
+        return;
+      }
+
+      setGenerationError(
         error instanceof Error
           ? error.message
-          : 'Unable to generate another bundle.'
+          : 'Unable to select bundle candidate.'
       );
     } finally {
-      setIsGeneratingOne(false);
+      setSelectingBundleId('');
     }
+  }
+
+  async function handleRefreshCandidates() {
+    if (!groupId) {
+      return;
+    }
+
+    setIsCandidatesLoading(true);
+    setGenerationError('');
+    setGenerationNotice('');
+
+    try {
+      await reloadCandidates();
+      setGenerationNotice('Refreshed bundle candidates.');
+    } catch (error) {
+      setGenerationError(
+        getGenerationErrorMessage(
+          error,
+          'Unable to refresh bundle candidates.'
+        )
+      );
+    } finally {
+      setIsCandidatesLoading(false);
+    }
+  }
+
+  async function handleGenerateBundles() {
+    if (!groupId) return;
+
+    if (bundlePayload?.candidates?.length) {
+      const confirmed = window.confirm(
+        'Generate 3 new bundles? This replaces the current candidate set on this server.'
+      );
+
+      if (!confirmed) {
+        return;
+      }
+    }
+
+    setIsGenerating(true);
+    setGenerationError('');
+    setGenerationNotice('');
+    setGenerationProgress(
+      buildGenerationProgress(generationForm.courseTypes)
+    );
+
+    try {
+      const payload = await generateBundleCandidates(groupId, generationForm);
+      setBundlePayload(payload);
+      setGenerationNotice('Generated a new candidate set.');
+    } catch (error) {
+      setGenerationError(
+        getGenerationErrorMessage(
+          error,
+          'Unable to generate bundle candidates.'
+        )
+      );
+    } finally {
+      setGenerationProgress((current) =>
+        current?.map((item) => ({ ...item, status: 'done' })) ?? null
+      );
+      window.setTimeout(() => {
+        setGenerationProgress(null);
+      }, 700);
+      setIsGenerating(false);
+    }
+  }
+
+  async function handleGenerateOneMore() {
+    if (!groupId) return;
+
+    setIsGenerating(true);
+    setGenerationError('');
+    setGenerationNotice('');
+    setGenerationProgress([
+      {
+        courseType: 'bundle',
+        label: 'Finding another bundle candidate',
+        status: 'loading'
+      }
+    ]);
+
+    try {
+      const payload = await generateOneMoreBundleCandidate(groupId);
+      setBundlePayload(payload);
+      setGenerationNotice('Added one more bundle candidate.');
+    } catch (error) {
+      setGenerationError(
+        getGenerationErrorMessage(
+          error,
+          'Unable to generate another bundle candidate.'
+        )
+      );
+    } finally {
+      setGenerationProgress((current) =>
+        current?.map((item) => ({ ...item, status: 'done' })) ?? null
+      );
+      window.setTimeout(() => {
+        setGenerationProgress(null);
+      }, 700);
+      setIsGenerating(false);
+    }
+  }
+
+  function toggleCourseType(courseType) {
+    setGenerationForm((current) => {
+      const hasType = current.courseTypes.includes(courseType);
+      return {
+        ...current,
+        courseTypes: hasType
+          ? current.courseTypes.filter((type) => type !== courseType)
+          : [...current.courseTypes, courseType]
+      };
+    });
   }
 
   async function saveSettingsPatch(updates, successMessage) {
@@ -263,7 +540,7 @@ export function GroupDetailPage() {
     const normalizedQuery = stapleQuery.trim().toLowerCase();
     if (!normalizedQuery) return;
 
-    const match = settings.ingredientCatalog.find((item) => {
+    const match = stapleSuggestions.find((item) => {
       const ingredientName = item.name.toLowerCase();
       return (
         item.id === normalizedQuery ||
@@ -294,6 +571,7 @@ export function GroupDetailPage() {
     setSettingsNotice('');
     setCustomStaplesDraft((current) => [...current, match]);
     setStapleQuery('');
+    setStapleSuggestions([]);
   }
 
   function handleRemoveCustomStaple(stapleId) {
@@ -495,11 +773,201 @@ export function GroupDetailPage() {
 
         {/* RECIPES TAB */}
         {activeTab === 'recipes' && (
-          <section className="gd-tab-content">
-            <div className="gd-empty-tab">
-              <UtensilsCrossed size={36} style={{ opacity: 0.3 }} />
-              <p>Recipes coming soon.</p>
-            </div>
+          <section className="gd-tab-content gd-recipes-tab">
+            {spoonacularMode && (
+              <p className="settings-note">
+                Spoonacular mode: catalog {spoonacularMode.catalog}, generation{' '}
+                {spoonacularMode.generation}
+                {spoonacularMode.generation === 'live'
+                  ? ' (uses API points)'
+                  : ''}
+              </p>
+            )}
+
+            {bundlePayload && (
+              <p className="settings-note">
+                Validation: missing ingredients{' '}
+                {bundlePayload.allowMissingIngredients ? 'allowed' : 'blocked'}; staples{' '}
+                {bundlePayload.staplesEnabled ? 'enabled' : 'disabled'}.
+                {bundlePayload.filteredOutCandidateCount > 0
+                  ? ` ${bundlePayload.filteredOutCandidateCount} candidate(s) were filtered out by validation.`
+                  : ''}
+              </p>
+            )}
+
+            {!isCandidatesLoading && combinedPantry.length === 0 && (
+              <div className="gd-empty-tab">
+                <Package size={36} style={{ opacity: 0.3 }} />
+                <p>
+                  The combined group pantry is empty. Add ingredients in My Pantry before
+                  generating bundles.
+                </p>
+              </div>
+            )}
+
+            {isAdmin && (
+              <div className="surface-card recipes-generate-card" style={{ marginBottom: '1rem' }}>
+                <div className="section-heading">
+                  <h2>Generate Bundles</h2>
+                </div>
+                <div className="pantry-form-grid recipes-generate-grid">
+                  <label className="field">
+                    <span>Cuisine direction</span>
+                    <input
+                      value={generationForm.cuisine}
+                      onChange={(event) =>
+                        setGenerationForm((current) => ({
+                          ...current,
+                          cuisine: event.target.value
+                        }))
+                      }
+                      placeholder="italian"
+                    />
+                  </label>
+                  <label className="field">
+                    <span>Search hint</span>
+                    <input
+                      value={generationForm.query}
+                      onChange={(event) =>
+                        setGenerationForm((current) => ({
+                          ...current,
+                          query: event.target.value
+                        }))
+                      }
+                      placeholder="pasta night"
+                    />
+                  </label>
+                </div>
+                <div className="staple-list" aria-label="Course types">
+                  {['appetizer', 'main', 'side', 'dessert'].map((courseType) => (
+                    <button
+                      key={courseType}
+                      type="button"
+                      className={`staple-chip ${
+                        generationForm.courseTypes.includes(courseType)
+                          ? 'staple-chip--default'
+                          : ''
+                      }`}
+                      onClick={() => toggleCourseType(courseType)}>
+                      {courseType}
+                    </button>
+                  ))}
+                </div>
+                <div className="settings-actions">
+                  <button
+                    className="button"
+                    type="button"
+                    disabled={isGenerating}
+                    onClick={handleGenerateBundles}>
+                    <UtensilsCrossed size={18} /> Generate 3 Bundles
+                  </button>
+                  <button
+                    className="button button--dark"
+                    type="button"
+                    disabled={isGenerating || !bundlePayload?.candidates?.length}
+                    onClick={handleGenerateOneMore}>
+                    <Plus size={18} /> Generate 1 More
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {generationProgress?.length > 0 && (
+              <section
+                className="surface-card generation-progress-card"
+                aria-live="polite"
+                aria-busy={isGenerating}>
+                <div className="section-heading">
+                  <h2>Generating bundles</h2>
+                </div>
+                <ul className="generation-progress-list">
+                  {generationProgress.map((item) => (
+                    <li
+                      className={`generation-progress-item generation-progress-item--${item.status}`}
+                      key={`${item.courseType}-${item.label}`}>
+                      <span>{item.label}</span>
+                      <span className="generation-progress-item__status">
+                        {item.status === 'loading'
+                          ? 'Searching…'
+                          : item.status === 'done'
+                            ? 'Done'
+                            : 'Waiting…'}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
+
+            {generationError && (
+              <StatusMessage type="error" title="Generation error" message={generationError} />
+            )}
+            {generationNotice && (
+              <StatusMessage type="success" title="Generation update" message={generationNotice} />
+            )}
+
+            {staleSelection && (
+              <section className="surface-card" style={{ marginBottom: '1rem' }}>
+                <div className="section-heading">
+                  <h2>Stale candidate set</h2>
+                </div>
+                <p className="settings-note">{staleSelection.message}</p>
+                <div className="settings-actions">
+                  <button
+                    className="button button--dark"
+                    type="button"
+                    onClick={handleRefreshCandidates}>
+                    Refresh candidates
+                  </button>
+                  <button
+                    className="button"
+                    type="button"
+                    disabled={Boolean(selectingBundleId)}
+                    onClick={() =>
+                      handleSelectBundle(staleSelection.candidate, {
+                        force: true
+                      })
+                    }>
+                    Select anyway
+                  </button>
+                </div>
+              </section>
+            )}
+
+            {isCandidatesLoading ? (
+              <StatusMessage
+                type="loading"
+                title="Loading candidates"
+                message="Fetching bundle candidates for this group."
+              />
+            ) : bundlePayload?.needsGeneration ? (
+              <div className="gd-empty-tab">
+                <UtensilsCrossed size={36} style={{ opacity: 0.3 }} />
+                <p>No generated bundles yet. An admin can generate candidates above.</p>
+              </div>
+            ) : bundlePayload?.candidates?.length ? (
+              <div className="ingredient-stack">
+                {bundlePayload.candidates.map((candidate) => (
+                  <BundleCandidateCard
+                    key={candidate.id}
+                    candidate={candidate}
+                    isAdmin={isAdmin}
+                    isSelecting={selectingBundleId === candidate.id}
+                    isSelectDisabled={Boolean(selectingBundleId)}
+                    onSelect={handleSelectBundle}
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="gd-empty-tab">
+                <UtensilsCrossed size={36} style={{ opacity: 0.3 }} />
+                <p>
+                  {bundlePayload?.filteredOutCandidateCount > 0
+                    ? `No valid candidates remain. ${bundlePayload.filteredOutCandidateCount} option(s) were filtered out by pantry, staples, or dietary rules.`
+                    : 'No valid bundle candidates matched the current pantry and settings.'}
+                </p>
+              </div>
+            )}
           </section>
         )}
 
@@ -508,36 +976,36 @@ export function GroupDetailPage() {
           <section className="gd-tab-content">
             <div className="section-heading" style={{ marginBottom: '0.5rem' }}>
               <h2>Meal Bundles</h2>
-              {Array.isArray(bundleCandidates) && (
+              {Array.isArray(bundlePayload?.candidates) && (
                 <span style={{ fontSize: '0.85rem', opacity: 0.6 }}>
-                  {bundleCandidates.length} candidate
-                  {bundleCandidates.length !== 1 ? 's' : ''}
+                  {bundlePayload.candidates.length} candidate
+                  {bundlePayload.candidates.length !== 1 ? 's' : ''}
                 </span>
               )}
             </div>
 
-            {isBundlesLoading ? (
+            {isCandidatesLoading ? (
               <StatusMessage
                 type="loading"
                 title="Loading bundles"
                 message="Generating meal bundles from the group pantry…"
               />
-            ) : bundlesError ? (
+            ) : generationError ? (
               <StatusMessage
                 type="error"
                 title="Bundles unavailable"
-                message={bundlesError}
+                message={generationError}
               />
             ) : (
               <>
-                {bundleCandidates && bundleCandidates.length === 0 ? (
+                {bundlePayload?.candidates && bundlePayload.candidates.length === 0 ? (
                   <div className="gd-empty-tab">
                     <ChefHat size={36} style={{ opacity: 0.3 }} />
                     <p>No bundle candidates available yet.</p>
                   </div>
                 ) : (
                   <div className="bundle-list">
-                    {(bundleCandidates ?? []).map((candidate) => (
+                    {(bundlePayload?.candidates ?? []).map((candidate) => (
                       <article
                         className={`bundle-card surface-card ${
                           candidate.isSelected ? 'bundle-card--selected' : ''
@@ -591,15 +1059,15 @@ export function GroupDetailPage() {
                     <button
                       className="button"
                       type="button"
-                      disabled={isGeneratingOne}
+                      disabled={isGenerating}
                       onClick={handleGenerateOneMore}
                     >
                       <Sparkles size={18} aria-hidden="true" />
-                      {isGeneratingOne ? 'Generating…' : 'Generate 1 More'}
+                      {isGenerating ? 'Generating…' : 'Generate 1 More'}
                     </button>
-                    {generateError && (
+                    {generationError && (
                       <p className="settings-status settings-status--error">
-                        {generateError}
+                        {generationError}
                       </p>
                     )}
                   </div>
@@ -719,17 +1187,36 @@ export function GroupDetailPage() {
                       <div className="staple-editor">
                         <input
                           className="staple-search"
-                          list="staple-ingredient-suggestions"
                           placeholder="Search ingredient suggestions"
                           value={stapleQuery}
                           disabled={!canEditSettings || isSettingsSaving}
                           onChange={(event) => setStapleQuery(event.target.value)}
                         />
-                        <datalist id="staple-ingredient-suggestions">
-                          {settings.ingredientCatalog.map((item) => (
-                            <option key={item.id} value={item.name} />
-                          ))}
-                        </datalist>
+                        {(stapleSuggestions.length > 0 ||
+                          (stapleQuery.trim() && isStapleSearching)) && (
+                          <div className="typeahead-results" role="listbox">
+                            {isStapleSearching && (
+                              <div className="result-row muted">
+                                Searching...
+                              </div>
+                            )}
+                            {!isStapleSearching &&
+                              stapleSuggestions.map((item) => (
+                                <button
+                                  key={item.id}
+                                  type="button"
+                                  className="result-row"
+                                  disabled={!canEditSettings || isSettingsSaving}
+                                  onClick={() => {
+                                    setStapleQuery(item.name);
+                                    setStapleSuggestions([item]);
+                                  }}>
+                                  <span>{item.name}</span>
+                                  <small>{item.category}</small>
+                                </button>
+                              ))}
+                          </div>
+                        )}
                         <button
                           className="button button--dark"
                           type="button"

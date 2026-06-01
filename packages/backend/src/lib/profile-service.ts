@@ -62,6 +62,12 @@ function serializeProfile(profile: Profile) {
     medicalRestrictions: profile.medicalRestrictions,
     neverIncludeIngredientIds:
       profile.neverIncludeIngredientIds,
+    diets: profile.diets,
+    intolerances: profile.intolerances,
+    preferredCuisines: profile.preferredCuisines,
+    excludedCuisines: profile.excludedCuisines,
+    dislikedIngredients: profile.dislikedIngredients,
+    spiceLevel: profile.spiceLevel,
     createdAt: profile.createdAt.toISOString(),
     updatedAt: profile.updatedAt.toISOString()
   };

@@ -6,28 +6,21 @@ import {
   X
 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
-import { PageHeader } from '../components/PageHeader.jsx';
+import { PageHeader } from '@/components/PageHeader.jsx';
 import {
   createPantryItem,
   deletePantryItem,
-  getIngredientCatalog,
   getPantryItems,
+  searchIngredientCatalog,
   updatePantryItem
-} from '../lib/pantryApi.js';
-import { getSavedSession } from '../lib/session.js';
+} from '@/lib/pantryApi.js';
+import { getSavedSession } from '@/lib/session.js';
 
 const emptyDraft = {
   ingredientName: '',
   quantity: '1',
   unit: ''
 };
-
-function mapCatalogIngredient(ingredient) {
-  return {
-    ...ingredient,
-    defaultUnit: ingredient.commonUnits?.[0] ?? 'units'
-  };
-}
 
 function mapApiItem(item) {
   return {
@@ -45,39 +38,22 @@ function mapApiItem(item) {
 
 export function PantryPage() {
   const [items, setItems] = useState([]);
-  const [ingredientDatabase, setIngredientDatabase] =
-    useState([]);
   const [draft, setDraft] = useState(emptyDraft);
+  const [selectedIngredient, setSelectedIngredient] = useState(null);
+  const [searchResults, setSearchResults] = useState([]);
+  const [isSearching, setIsSearching] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [statusMessage, setStatusMessage] = useState(
     'Search the canonical database before adding an item.'
   );
 
-  const matchedIngredient = useMemo(() => {
-    const normalizedName = draft.ingredientName
-      .trim()
-      .toLowerCase();
-
-    return ingredientDatabase.find(
-      (ingredient) =>
-        ingredient.name.toLowerCase() === normalizedName ||
-        ingredient.id === normalizedName
-    );
-  }, [draft.ingredientName, ingredientDatabase]);
+  const trimmedQuery = draft.ingredientName.trim();
 
   useEffect(() => {
     let isCancelled = false;
 
     async function loadPantry() {
       try {
-        const catalogPayload = await getIngredientCatalog();
-
-        if (!isCancelled) {
-          setIngredientDatabase(
-            catalogPayload.ingredients.map(mapCatalogIngredient)
-          );
-        }
-
         if (!getSavedSession()?.profileId) {
           if (!isCancelled) {
             setStatusMessage(
@@ -113,29 +89,87 @@ export function PantryPage() {
     };
   }, []);
 
+  useEffect(() => {
+    if (!trimmedQuery) {
+      setSearchResults([]);
+      setSelectedIngredient(null);
+      return undefined;
+    }
+
+    if (
+      selectedIngredient &&
+      selectedIngredient.name.toLowerCase() ===
+        trimmedQuery.toLowerCase()
+    ) {
+      setSearchResults([]);
+      return undefined;
+    }
+
+    let isCurrentSearch = true;
+    const timeoutId = window.setTimeout(() => {
+      setIsSearching(true);
+      searchIngredientCatalog(trimmedQuery)
+        .then((ingredients) => {
+          if (isCurrentSearch) {
+            setSearchResults(ingredients);
+          }
+        })
+        .catch(() => {
+          if (isCurrentSearch) {
+            setSearchResults([]);
+          }
+        })
+        .finally(() => {
+          if (isCurrentSearch) {
+            setIsSearching(false);
+          }
+        });
+    }, 250);
+
+    return () => {
+      isCurrentSearch = false;
+      window.clearTimeout(timeoutId);
+    };
+  }, [trimmedQuery, selectedIngredient]);
+
+  const matchedIngredient = useMemo(() => {
+    if (
+      selectedIngredient &&
+      selectedIngredient.name.toLowerCase() ===
+        trimmedQuery.toLowerCase()
+    ) {
+      return {
+        ...selectedIngredient,
+        defaultUnit: selectedIngredient.commonUnits?.[0] ?? 'units'
+      };
+    }
+
+    return null;
+  }, [selectedIngredient, trimmedQuery]);
+
   function updateDraft(event) {
     const { name, value } = event.target;
-    setDraft((current) => {
-      const nextDraft = { ...current, [name]: value };
+    setDraft((current) => ({ ...current, [name]: value }));
 
-      if (name === 'ingredientName') {
-        const nextMatch = ingredientDatabase.find(
-          (ingredient) =>
-            ingredient.name.toLowerCase() ===
-            value.trim().toLowerCase()
-        );
+    if (name === 'ingredientName') {
+      setSelectedIngredient(null);
+    }
+  }
 
-        if (nextMatch) {
-          nextDraft.unit = nextMatch.defaultUnit;
-        }
-      }
-
-      return nextDraft;
-    });
+  function selectIngredient(ingredient) {
+    setSelectedIngredient(ingredient);
+    setDraft((current) => ({
+      ...current,
+      ingredientName: ingredient.name,
+      unit: ingredient.commonUnits?.[0] ?? current.unit
+    }));
+    setSearchResults([]);
   }
 
   function resetDraft() {
     setDraft(emptyDraft);
+    setSelectedIngredient(null);
+    setSearchResults([]);
     setEditingId(null);
   }
 
@@ -174,7 +208,8 @@ export function PantryPage() {
           name: matchedIngredient.name,
           quantity: draft.quantity,
           unit:
-            draft.unit.trim() || matchedIngredient.defaultUnit
+            draft.unit.trim() ||
+            matchedIngredient.defaultUnit
         };
         const savedItem = editingId
           ? await updatePantryItem(editingId, payload)
@@ -211,6 +246,11 @@ export function PantryPage() {
       ingredientName: item.name,
       quantity: item.quantity,
       unit: item.unit
+    });
+    setSelectedIngredient({
+      id: item.ingredientId,
+      name: item.name,
+      commonUnits: [item.unit].filter(Boolean)
     });
     setStatusMessage(`Editing ${item.name}.`);
   }
@@ -268,19 +308,36 @@ export function PantryPage() {
         <div className="pantry-form-grid">
           <label className="field">
             <span>Ingredient</span>
-            <input
-              name="ingredientName"
-              list="ingredient-database"
-              value={draft.ingredientName}
-              onChange={updateDraft}
-              placeholder="Search ingredient database"
-            />
+            <div className="ingredient-picker">
+              <input
+                name="ingredientName"
+                value={draft.ingredientName}
+                onChange={updateDraft}
+                placeholder="Search ingredient database"
+              />
+              {(searchResults.length > 0 ||
+                (trimmedQuery && isSearching)) && (
+                <div className="typeahead-results" role="listbox">
+                  {isSearching && (
+                    <div className="result-row muted">
+                      Searching...
+                    </div>
+                  )}
+                  {!isSearching &&
+                    searchResults.map((ingredient) => (
+                      <button
+                        key={ingredient.id}
+                        type="button"
+                        className="result-row"
+                        onClick={() => selectIngredient(ingredient)}>
+                        <span>{ingredient.name}</span>
+                        <small>{ingredient.category}</small>
+                      </button>
+                    ))}
+                </div>
+              )}
+            </div>
           </label>
-          <datalist id="ingredient-database">
-            {ingredientDatabase.map((ingredient) => (
-              <option key={ingredient.id} value={ingredient.name} />
-            ))}
-          </datalist>
 
           <label className="field">
             <span>Quantity</span>
