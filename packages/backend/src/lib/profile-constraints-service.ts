@@ -11,6 +11,12 @@ const constraintProfileSelect = {
   allergies: true,
   medicalRestrictions: true,
   neverIncludeIngredientIds: true,
+  diets: true,
+  intolerances: true,
+  preferredCuisines: true,
+  excludedCuisines: true,
+  dislikedIngredients: true,
+  spiceLevel: true,
   updatedAt: true
 };
 
@@ -24,6 +30,12 @@ function serializeProfileConstraints(profile: {
   allergies: string[];
   medicalRestrictions: string[];
   neverIncludeIngredientIds: string[];
+  diets?: string[];
+  intolerances?: string[];
+  preferredCuisines?: string[];
+  excludedCuisines?: string[];
+  dislikedIngredients?: string[];
+  spiceLevel?: string | null;
   updatedAt: Date;
 }): UserConstraints {
   return {
@@ -32,8 +44,47 @@ function serializeProfileConstraints(profile: {
     medicalRestrictions: profile.medicalRestrictions,
     neverIncludeIngredientIds:
       profile.neverIncludeIngredientIds,
+    diets: profile.diets ?? [],
+    intolerances: profile.intolerances ?? [],
+    preferredCuisines: profile.preferredCuisines ?? [],
+    excludedCuisines: profile.excludedCuisines ?? [],
+    dislikedIngredients: profile.dislikedIngredients ?? [],
+    spiceLevel: profile.spiceLevel ?? null,
     updatedAt: profile.updatedAt.toISOString()
   };
+}
+
+export async function listProfileConstraintsForUsers(
+  userIds: string[]
+): Promise<UserConstraints[]> {
+  const uniqueUserIds = [...new Set(userIds.filter(Boolean))];
+
+  if (uniqueUserIds.length === 0) {
+    return [];
+  }
+
+  const prisma = await getPrismaClient();
+  const profiles = await prisma.profile.findMany({
+    where: {
+      id: {
+        in: uniqueUserIds
+      }
+    },
+    select: constraintProfileSelect
+  });
+
+  const byId = new Map(
+    profiles.map((profile) => [
+      profile.id,
+      serializeProfileConstraints(profile)
+    ])
+  );
+
+  return uniqueUserIds
+    .map((userId) => byId.get(userId))
+    .filter((constraints): constraints is UserConstraints =>
+      Boolean(constraints)
+    );
 }
 
 export async function readProfileConstraints(
@@ -79,7 +130,16 @@ export async function replaceProfileConstraints(
         input.medicalRestrictions ?? empty.medicalRestrictions,
       neverIncludeIngredientIds:
         input.neverIncludeIngredientIds ??
-        empty.neverIncludeIngredientIds
+        empty.neverIncludeIngredientIds,
+      diets: input.diets ?? empty.diets ?? [],
+      intolerances: input.intolerances ?? empty.intolerances ?? [],
+      preferredCuisines:
+        input.preferredCuisines ?? empty.preferredCuisines ?? [],
+      excludedCuisines:
+        input.excludedCuisines ?? empty.excludedCuisines ?? [],
+      dislikedIngredients:
+        input.dislikedIngredients ?? empty.dislikedIngredients ?? [],
+      spiceLevel: input.spiceLevel ?? empty.spiceLevel ?? null
     },
     select: constraintProfileSelect
   });
@@ -115,6 +175,22 @@ export async function patchProfileConstraints(
           neverIncludeIngredientIds:
             input.neverIncludeIngredientIds
         }
+      : {}),
+    ...(input.diets !== undefined ? { diets: input.diets } : {}),
+    ...(input.intolerances !== undefined
+      ? { intolerances: input.intolerances }
+      : {}),
+    ...(input.preferredCuisines !== undefined
+      ? { preferredCuisines: input.preferredCuisines }
+      : {}),
+    ...(input.excludedCuisines !== undefined
+      ? { excludedCuisines: input.excludedCuisines }
+      : {}),
+    ...(input.dislikedIngredients !== undefined
+      ? { dislikedIngredients: input.dislikedIngredients }
+      : {}),
+    ...(input.spiceLevel !== undefined
+      ? { spiceLevel: input.spiceLevel }
       : {})
   };
 

@@ -13,7 +13,7 @@ import {
   it,
   vi
 } from 'vitest';
-import { GroupsPage } from './GroupsPage.jsx';
+import { GroupsPage } from '@/pages/GroupsPage.jsx';
 
 const initialGroupsPayload = {
   groups: [

@@ -1,26 +1,31 @@
-import { apiFetch } from './api.js';
+import { apiFetch } from '@/lib/api.js';
+import { readJson } from '@/lib/httpResponse.js';
 
-async function readJson(response) {
-  if (response.status === 204) {
-    return null;
+export async function getIngredientCatalog(query = '', limit = 15) {
+  const params = new URLSearchParams();
+
+  if (query.trim()) {
+    params.set('q', query.trim());
   }
 
-  const payload = await response.json();
+  params.set('limit', String(limit));
 
-  if (!response.ok) {
-    throw new Error(
-      payload.error?.message ??
-        payload.error ??
-        'Request failed.'
-    );
-  }
-
-  return payload;
+  const response = await fetch(
+    `/api/ingredients/catalog?${params.toString()}`
+  );
+  return readJson(response);
 }
 
-export async function getIngredientCatalog() {
-  const response = await fetch('/api/ingredients/catalog');
-  return readJson(response);
+export async function searchIngredientCatalog(query, limit = 15) {
+  const params = new URLSearchParams({
+    q: query,
+    limit: String(limit)
+  });
+  const response = await fetch(
+    `/api/ingredients/catalog?${params.toString()}`
+  );
+  const payload = await readJson(response);
+  return payload.ingredients;
 }
 
 export function getPantryItems() {

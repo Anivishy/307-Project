@@ -1,6 +1,6 @@
 import { Plus, Sparkles } from "lucide-react";
 import { useMemo, useState } from "react";
-import { PageHeader } from "../components/PageHeader.jsx";
+import { PageHeader } from "@/components/PageHeader.jsx";
 
 const initialRecipe = {
   title: "",

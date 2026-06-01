@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { searchConstraintIngredients } from '../lib/constraintsApi.js';
+import { searchConstraintIngredients } from '@/lib/constraintsApi.js';
 
 export function IngredientTypeahead({ selected, onChange }) {
   const [query, setQuery] = useState('');

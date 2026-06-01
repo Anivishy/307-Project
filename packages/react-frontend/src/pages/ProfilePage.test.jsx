@@ -1,7 +1,8 @@
 import {
   render,
   screen,
-  waitFor
+  waitFor,
+  within
 } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import {
@@ -12,8 +13,8 @@ import {
   it,
   vi
 } from 'vitest';
-import { saveSession } from '../lib/session.js';
-import { ProfilePage } from './ProfilePage.jsx';
+import { saveSession } from '@/lib/session.js';
+import { ProfilePage } from '@/pages/ProfilePage.jsx';
 
 const profilePayload = {
   id: '11111111-1111-4111-8111-111111111111',
@@ -34,7 +35,39 @@ const constraintsPayload = {
     allergies: ['peanut'],
     medicalRestrictions: ['low sodium'],
     neverIncludeIngredientIds: ['shrimp'],
+    diets: ['vegan'],
+    intolerances: ['dairy'],
+    preferredCuisines: ['italian'],
+    excludedCuisines: [],
+    dislikedIngredients: ['cilantro'],
+    spiceLevel: 'medium',
     updatedAt: '2026-05-14T00:00:00.000Z'
+  }
+};
+
+const definitionsPayload = {
+  definitions: {
+    diets: [
+      {
+        value: 'gluten free',
+        label: 'Gluten Free',
+        description: 'Avoids gluten.'
+      },
+      {
+        value: 'vegan',
+        label: 'Vegan',
+        description: 'Avoids animal products.'
+      }
+    ],
+    intolerances: [
+      { value: 'dairy', label: 'Dairy' },
+      { value: 'gluten', label: 'Gluten' }
+    ],
+    cuisines: [
+      { value: 'italian', label: 'Italian' },
+      { value: 'greek', label: 'Greek' },
+      { value: 'thai', label: 'Thai' }
+    ]
   }
 };
 
@@ -147,6 +180,10 @@ describe('ProfilePage US5 controls', () => {
         return jsonResponse(ingredientsPayload);
       }
 
+      if (url === '/api/spoonacular/definitions') {
+        return jsonResponse(definitionsPayload);
+      }
+
       if (
         url === '/api/profile/constraints' &&
         options?.method === 'PATCH'
@@ -174,6 +211,17 @@ describe('ProfilePage US5 controls', () => {
     ).toBeInTheDocument();
     expect(screen.getByText('low sodium')).toBeInTheDocument();
     expect(screen.getByText('Shrimp')).toBeInTheDocument();
+    expect(screen.getByLabelText('Vegan')).toBeChecked();
+    expect(screen.getByLabelText('Dairy')).toBeChecked();
+    expect(
+      within(
+        screen.getByRole('group', { name: 'Preferred Cuisines' })
+      ).getByLabelText('Italian')
+    ).toBeChecked();
+    expect(screen.getByText('cilantro')).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Medium' })
+    ).toHaveAttribute('aria-pressed', 'true');
     expect(
       screen.queryByText('Add from Database')
     ).not.toBeInTheDocument();
@@ -195,7 +243,54 @@ describe('ProfilePage US5 controls', () => {
     expect(JSON.parse(saveCall[1].body)).toEqual({
       allergies: ['peanut'],
       medicalRestrictions: ['low sodium'],
-      neverIncludeIngredientIds: ['shrimp']
+      diets: ['vegan'],
+      intolerances: ['dairy'],
+      neverIncludeIngredientIds: ['shrimp'],
+      preferredCuisines: ['italian'],
+      excludedCuisines: [],
+      dislikedIngredients: ['cilantro'],
+      spiceLevel: 'medium'
+    });
+  });
+
+  it('saves definitions-backed diets and soft preferences', async () => {
+    const user = userEvent.setup();
+
+    render(<ProfilePage />);
+
+    await user.click(await screen.findByLabelText('Gluten Free'));
+
+    const excludedCuisineGroup = screen.getByRole('group', {
+      name: 'Excluded Cuisines'
+    });
+    await user.click(within(excludedCuisineGroup).getByLabelText('Greek'));
+
+    const preferredCuisineGroup = screen.getByRole('group', {
+      name: 'Preferred Cuisines'
+    });
+    await user.click(within(preferredCuisineGroup).getByLabelText('Thai'));
+    await user.click(screen.getByRole('button', { name: 'Hot' }));
+
+    await user.click(
+      screen.getByRole('button', { name: /Save Rules/i })
+    );
+
+    const saveCall = fetchMock.mock.calls.find(
+      ([url, options]) =>
+        String(url) === '/api/profile/constraints' &&
+        options?.method === 'PATCH'
+    );
+
+    expect(JSON.parse(saveCall[1].body)).toEqual({
+      allergies: ['peanut'],
+      medicalRestrictions: ['low sodium'],
+      diets: ['vegan', 'gluten free'],
+      intolerances: ['dairy'],
+      neverIncludeIngredientIds: ['shrimp'],
+      preferredCuisines: ['italian', 'thai'],
+      excludedCuisines: ['greek'],
+      dislikedIngredients: ['cilantro'],
+      spiceLevel: 'hot'
     });
   });
 

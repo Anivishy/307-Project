@@ -44,7 +44,7 @@ function groupRecord(overrides = {}) {
     selectedBundleId: null,
     allowMissingIngredients: false,
     staplesEnabled: false,
-    customStaples: ['salt'],
+    customStaples: ['2047'],
     createdAt: now,
     updatedAt: now,
     members: [membership(ADMIN_ID, 'ADMIN'), membership(MEMBER_ID, 'MEMBER')],
@@ -55,6 +55,7 @@ function groupRecord(overrides = {}) {
 describe('persisted group settings', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.stubEnv('SPOONACULAR_MOCK', 'true');
   });
 
   it('reads SRD settings for an existing group member', async () => {
@@ -70,13 +71,13 @@ describe('persisted group settings', () => {
       viewerRole: 'admin'
     });
     expect(payload.defaultStaplesPreset.map((item) => item.id)).toEqual([
-      'olive-oil',
-      'butter',
-      'salt',
-      'pepper'
+      '4053',
+      '1001',
+      '2047',
+      '1002030'
     ]);
     expect(payload.customStaples).toEqual([
-      expect.objectContaining({ id: 'salt', name: 'Salt' })
+      expect.objectContaining({ id: '2047', name: 'Salt' })
     ]);
   });
 
@@ -86,14 +87,14 @@ describe('persisted group settings', () => {
       groupRecord({
         allowMissingIngredients: true,
         staplesEnabled: true,
-        customStaples: ['rice', 'salt']
+        customStaples: ['1123367', '2047']
       })
     );
 
     const payload = await savePersistedGroupSettings(GROUP_ID, ADMIN_ID, {
       allowMissingIngredients: true,
       staplesEnabled: true,
-      customStaples: ['rice', 'salt', 'rice']
+      customStaples: ['1123367', '2047', '1123367']
     });
 
     expect(prismaMock.group.update).toHaveBeenCalledWith(
@@ -101,7 +102,7 @@ describe('persisted group settings', () => {
         data: {
           allowMissingIngredients: true,
           staplesEnabled: true,
-          customStaples: ['rice', 'salt']
+          customStaples: ['1123367', '2047']
         }
       })
     );
@@ -110,8 +111,8 @@ describe('persisted group settings', () => {
       staplesEnabled: true
     });
     expect(payload.customStaples.map((item) => item.id)).toEqual([
-      'rice',
-      'salt'
+      '1123367',
+      '2047'
     ]);
   });
 
