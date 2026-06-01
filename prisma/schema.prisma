@@ -28,6 +28,10 @@ enum MealCategory {
   OTHER
 }
 
+enum NotificationType {
+  INGREDIENT_ADDED
+}
+
 model Profile {
   id                        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   email                     String   @unique @db.VarChar(320)
@@ -53,6 +57,8 @@ model Profile {
   groupMemberships             GroupMember[]
   menuRequests                 MenuRequest[]
   contributedRecipeIngredients RecipeIngredient[] @relation("RecipeIngredientSource")
+  receivedNotifications        Notification[]     @relation("NotificationRecipient")
+  actedNotifications           Notification[]     @relation("NotificationActor")
 
   @@map("profiles")
 }
@@ -68,7 +74,8 @@ model Ingredient {
   createdAt             DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt             DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  owner Profile @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  owner         Profile        @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  notifications Notification[]
 
   @@unique([ownerId, name])
   @@index([canonicalIngredientId])
@@ -91,10 +98,11 @@ model Group {
   createdAt               DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt               DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  owner        Profile       @relation("GroupOwner", fields: [ownerId], references: [id], onDelete: Restrict)
-  members      GroupMember[]
-  menuRequests MenuRequest[]
-  menus        Menu[]
+  owner         Profile        @relation("GroupOwner", fields: [ownerId], references: [id], onDelete: Restrict)
+  members       GroupMember[]
+  menuRequests  MenuRequest[]
+  menus         Menu[]
+  notifications Notification[]
 
   @@index([ownerId])
   @@map("groups")
@@ -184,4 +192,28 @@ model RecipeIngredient {
   @@index([recipeId])
   @@index([fromProfileId])
   @@map("recipe_ingredients")
+}
+
+model Notification {
+  id           String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  recipientId  String           @map("recipient_id") @db.Uuid
+  actorId      String?          @map("actor_id") @db.Uuid
+  groupId      String?          @map("group_id") @db.Uuid
+  ingredientId String?          @map("ingredient_id") @db.Uuid
+  type         NotificationType
+  title        String           @db.VarChar(160)
+  message      String           @db.Text
+  metadata     Json?
+  readAt       DateTime?        @map("read_at") @db.Timestamptz(6)
+  createdAt    DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  recipient  Profile     @relation("NotificationRecipient", fields: [recipientId], references: [id], onDelete: Cascade)
+  actor      Profile?    @relation("NotificationActor", fields: [actorId], references: [id], onDelete: SetNull)
+  group      Group?      @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  ingredient Ingredient? @relation(fields: [ingredientId], references: [id], onDelete: SetNull)
+
+  @@index([recipientId, readAt, createdAt])
+  @@index([recipientId, createdAt])
+  @@index([groupId, createdAt])
+  @@map("notifications")
 }
