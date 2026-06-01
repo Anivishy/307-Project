@@ -1,11 +1,9 @@
 import {
   Check,
-  ChefHat,
   Copy,
   Package,
   Plus,
   SlidersHorizontal,
-  Sparkles,
   UtensilsCrossed,
   Users,
   X
@@ -669,13 +667,6 @@ export function GroupDetailPage() {
           >
             <UtensilsCrossed size={16} /> Recipes
           </button>
-          <button
-            className={`gd-tab ${activeTab === 'bundles' ? 'gd-tab--active' : ''}`}
-            type="button"
-            onClick={() => setActiveTab('bundles')}
-          >
-            <ChefHat size={16} /> Bundles
-          </button>
           {isAdmin && (
             <button
               className={`gd-tab ${activeTab === 'settings' ? 'gd-tab--active' : ''}`}
@@ -967,112 +958,6 @@ export function GroupDetailPage() {
                     : 'No valid bundle candidates matched the current pantry and settings.'}
                 </p>
               </div>
-            )}
-          </section>
-        )}
-
-        {/* BUNDLES TAB */}
-        {activeTab === 'bundles' && (
-          <section className="gd-tab-content">
-            <div className="section-heading" style={{ marginBottom: '0.5rem' }}>
-              <h2>Meal Bundles</h2>
-              {Array.isArray(bundlePayload?.candidates) && (
-                <span style={{ fontSize: '0.85rem', opacity: 0.6 }}>
-                  {bundlePayload.candidates.length} candidate
-                  {bundlePayload.candidates.length !== 1 ? 's' : ''}
-                </span>
-              )}
-            </div>
-
-            {isCandidatesLoading ? (
-              <StatusMessage
-                type="loading"
-                title="Loading bundles"
-                message="Generating meal bundles from the group pantry…"
-              />
-            ) : generationError ? (
-              <StatusMessage
-                type="error"
-                title="Bundles unavailable"
-                message={generationError}
-              />
-            ) : (
-              <>
-                {bundlePayload?.candidates && bundlePayload.candidates.length === 0 ? (
-                  <div className="gd-empty-tab">
-                    <ChefHat size={36} style={{ opacity: 0.3 }} />
-                    <p>No bundle candidates available yet.</p>
-                  </div>
-                ) : (
-                  <div className="bundle-list">
-                    {(bundlePayload?.candidates ?? []).map((candidate) => (
-                      <article
-                        className={`bundle-card surface-card ${
-                          candidate.isSelected ? 'bundle-card--selected' : ''
-                        }`}
-                        key={candidate.id}
-                      >
-                        <div className="bundle-card__head">
-                          <h3>{candidate.title}</h3>
-                          {candidate.isSelected && (
-                            <span className="bundle-card__badge">
-                              <Check size={14} aria-hidden="true" /> Selected
-                            </span>
-                          )}
-                        </div>
-
-                        {Array.isArray(candidate.courses) &&
-                          candidate.courses.length > 0 && (
-                            <p className="bundle-card__courses">
-                              {candidate.courses
-                                .map((course) => course.title)
-                                .join(' · ')}
-                            </p>
-                          )}
-
-                        {candidate.rationale && (
-                          <p className="bundle-card__rationale">
-                            {candidate.rationale}
-                          </p>
-                        )}
-
-                        {Array.isArray(candidate.ingredientList) &&
-                          candidate.ingredientList.length > 0 && (
-                            <ul className="bundle-card__ingredients">
-                              {candidate.ingredientList.map((ingredient) => (
-                                <li key={ingredient.ingredientId}>
-                                  <span>{ingredient.name}</span>
-                                  <span className="bundle-card__ingredient-qty">
-                                    {ingredient.quantity} {ingredient.unit}
-                                  </span>
-                                </li>
-                              ))}
-                            </ul>
-                          )}
-                      </article>
-                    ))}
-                  </div>
-                )}
-
-                {isAdmin && (
-                  <div className="bundle-generate-row">
-                    <button
-                      className="button"
-                      type="button"
-                      disabled={isGenerating}
-                      onClick={handleGenerateOneMore}
-                    >
-                      <Sparkles size={18} aria-hidden="true" />
-                      {isGenerating ? 'Generating…' : 'Generate 1 More'}
-                    </button>
-                    {generationError && (
-                      <p className="settings-status settings-status--error">
-                        {generationError}
-                      </p>
-                    )}
-                  </div>
-                )}
-              </>
             )}
           </section>
         )}

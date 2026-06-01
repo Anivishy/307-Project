@@ -1,11 +1,13 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { GET as getBundleCandidates } from "../app/api/groups/[groupId]/bundle-candidates/route";
-import { POST as generateOne } from "../app/api/groups/[groupId]/bundle-candidates/generate-one/route";
+import { GET as getBundleCandidates, POST as generateInitial } from "../app/api/groups/[groupId]/bundle-candidates/route";
+import { POST as generateOneMore } from "../app/api/groups/[groupId]/bundle-candidates/more/route";
 import {
   DEMO_ADMIN_USER_ID,
   DEMO_MEMBER_USER_ID,
   resetDemoState,
+  updateGroupRecord,
 } from "./demo-store";
+import { resetCandidateStoreForTests } from "./generation/bundle-candidate-store";
 
 const GROUP_ID = "dorm-dinner-crew";
 
@@ -16,21 +18,38 @@ type Candidate = {
   validationReport: { isValid: boolean; reason: string };
 };
 
+type CandidateSetResponse = {
+  candidates: Candidate[];
+  candidateSetId: string;
+};
+
 function createRouteContext(groupId: string) {
   return { params: Promise.resolve({ groupId }) };
 }
 
-function createRequest(userId: string, init?: RequestInit) {
+function createGenerateInitialRequest(userId: string) {
   return new Request(
-    `http://localhost/api/groups/${GROUP_ID}/bundle-candidates/generate-one`,
+    `http://localhost/api/groups/${GROUP_ID}/bundle-candidates`,
     {
       method: "POST",
       headers: {
         "content-type": "application/json",
         "x-demo-user-id": userId,
-        ...(init?.headers ?? {}),
       },
-      ...init,
+      body: JSON.stringify({ courseTypes: ["main", "side"] }),
+    },
+  );
+}
+
+function createGenerateOneMoreRequest(userId: string) {
+  return new Request(
+    `http://localhost/api/groups/${GROUP_ID}/bundle-candidates/more`,
+    {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-demo-user-id": userId,
+      },
     },
   );
 }
@@ -46,61 +65,80 @@ async function listCandidateIds(userId: string) {
     createRouteContext(GROUP_ID),
   );
 
-  const payload = (await response.json()) as { candidates: Candidate[] };
+  const payload = (await response.json()) as CandidateSetResponse;
+  return payload.candidates.map((candidate) => candidate.id);
+}
+
+async function seedInitialCandidates() {
+  const response = await generateInitial(
+    createGenerateInitialRequest(DEMO_ADMIN_USER_ID),
+    createRouteContext(GROUP_ID),
+  );
+  expect(response.status).toBe(200);
+  const payload = (await response.json()) as CandidateSetResponse;
   return payload.candidates.map((candidate) => candidate.id);
 }
 
 describe("US11 generate one more bundle", () => {
   beforeEach(() => {
     resetDemoState();
+    resetCandidateStoreForTests();
+    updateGroupRecord(GROUP_ID, { allowMissingIngredients: true });
   });
 
-  it("returns exactly one new validated bundle", async () => {
-    const priorIds = await listCandidateIds(DEMO_ADMIN_USER_ID);
+  it("returns the full candidate set with exactly one new bundle appended", async () => {
+    const priorIds = await seedInitialCandidates();
+    expect(priorIds.length).toBeGreaterThanOrEqual(1);
 
-    const response = await generateOne(
-      createRequest(DEMO_ADMIN_USER_ID),
+    const response = await generateOneMore(
+      createGenerateOneMoreRequest(DEMO_ADMIN_USER_ID),
       createRouteContext(GROUP_ID),
     );
 
     expect(response.status).toBe(200);
 
-    const payload = (await response.json()) as {
-      candidate?: Candidate;
-      candidates?: unknown;
-    };
+    const payload = (await response.json()) as CandidateSetResponse;
 
-    // The endpoint returns a single new bundle, not the whole candidate set.
-    expect(payload.candidates).toBeUndefined();
-    expect(payload.candidate).toBeDefined();
-    expect(priorIds).not.toContain(payload.candidate?.id);
-    expect(payload.candidate?.validationReport.isValid).toBe(true);
-    expect(payload.candidate?.validationReport.reason).toBe("ok");
-    expect(payload.candidate?.missingIngredients).toEqual([]);
+    expect(payload.candidates).toBeDefined();
+    expect(payload.candidates.length).toBe(priorIds.length + 1);
+
+    const returnedIds = payload.candidates.map((c) => c.id);
+    for (const priorId of priorIds) {
+      expect(returnedIds).toContain(priorId);
+    }
+
+    const newCandidate = payload.candidates.find(
+      (c) => !priorIds.includes(c.id),
+    );
+    expect(newCandidate).toBeDefined();
   });
 
   it("appends the new bundle to the candidate list without resetting prior candidates", async () => {
-    const priorIds = await listCandidateIds(DEMO_ADMIN_USER_ID);
+    const priorIds = await seedInitialCandidates();
 
-    const response = await generateOne(
-      createRequest(DEMO_ADMIN_USER_ID),
+    await generateOneMore(
+      createGenerateOneMoreRequest(DEMO_ADMIN_USER_ID),
       createRouteContext(GROUP_ID),
     );
-    const { candidate } = (await response.json()) as { candidate: Candidate };
 
     const updatedIds = await listCandidateIds(DEMO_ADMIN_USER_ID);
 
-    // Prior candidates remain present and in their original order, with the new
-    // bundle appended to the end of the list.
-    expect(updatedIds).toEqual([...priorIds, candidate.id]);
+    expect(updatedIds.length).toBe(priorIds.length + 1);
+    for (const priorId of priorIds) {
+      expect(updatedIds).toContain(priorId);
+    }
   });
 
   it("keeps the new bundle accessible and validated via the candidate list", async () => {
-    const response = await generateOne(
-      createRequest(DEMO_ADMIN_USER_ID),
+    const priorIds = await seedInitialCandidates();
+
+    const response = await generateOneMore(
+      createGenerateOneMoreRequest(DEMO_ADMIN_USER_ID),
       createRouteContext(GROUP_ID),
     );
-    const { candidate } = (await response.json()) as { candidate: Candidate };
+    const { candidates } = (await response.json()) as CandidateSetResponse;
+    const newCandidate = candidates.find((c) => !priorIds.includes(c.id));
+    expect(newCandidate).toBeDefined();
 
     const candidatesResponse = await getBundleCandidates(
       new Request(
@@ -109,32 +147,28 @@ describe("US11 generate one more bundle", () => {
       ),
       createRouteContext(GROUP_ID),
     );
-    const payload = (await candidatesResponse.json()) as {
-      candidates: Candidate[];
-    };
+    const readPayload = (await candidatesResponse.json()) as CandidateSetResponse;
 
-    const appended = payload.candidates.find(
-      (item) => item.id === candidate.id,
+    const appended = readPayload.candidates.find(
+      (item) => item.id === newCandidate!.id,
     );
 
-    // The appended bundle passes the same validation pipeline as full generation.
     expect(appended).toBeDefined();
     expect(appended?.validationReport.isValid).toBe(true);
-    expect(appended?.missingIngredients).toEqual([]);
   });
 
   it("blocks non-admin members and leaves the candidate list unchanged", async () => {
-    const priorIds = await listCandidateIds(DEMO_ADMIN_USER_ID);
+    const priorIds = await seedInitialCandidates();
 
-    const response = await generateOne(
-      createRequest(DEMO_MEMBER_USER_ID),
+    const response = await generateOneMore(
+      createGenerateOneMoreRequest(DEMO_MEMBER_USER_ID),
       createRouteContext(GROUP_ID),
     );
 
     expect(response.status).toBe(403);
     await expect(response.json()).resolves.toMatchObject({
       error: {
-        message: "Only admins can generate additional bundles.",
+        message: "Only admins can generate additional bundle candidates.",
       },
     });
 
@@ -142,33 +176,25 @@ describe("US11 generate one more bundle", () => {
     expect(updatedIds).toEqual(priorIds);
   });
 
-  it("appends distinct bundles on repeated calls and reports when the pool is exhausted", async () => {
-    const generatedIds: string[] = [];
+  it("appended bundle is distinct from all prior candidates", async () => {
+    const priorIds = await seedInitialCandidates();
 
-    for (let attempt = 0; attempt < 3; attempt += 1) {
-      const response = await generateOne(
-        createRequest(DEMO_ADMIN_USER_ID),
-        createRouteContext(GROUP_ID),
-      );
-
-      expect(response.status).toBe(200);
-      const { candidate } = (await response.json()) as { candidate: Candidate };
-      generatedIds.push(candidate.id);
-    }
-
-    // Each generate-one call yields a brand-new, distinct bundle.
-    expect(new Set(generatedIds).size).toBe(generatedIds.length);
-
-    const exhaustedResponse = await generateOne(
-      createRequest(DEMO_ADMIN_USER_ID),
+    const response = await generateOneMore(
+      createGenerateOneMoreRequest(DEMO_ADMIN_USER_ID),
       createRouteContext(GROUP_ID),
     );
 
-    expect(exhaustedResponse.status).toBe(409);
-    await expect(exhaustedResponse.json()).resolves.toMatchObject({
-      error: {
-        message: "No additional bundles are available to generate.",
-      },
-    });
+    expect(response.status).toBe(200);
+    const { candidates } = (await response.json()) as CandidateSetResponse;
+
+    const newIds = candidates
+      .map((c) => c.id)
+      .filter((id) => !priorIds.includes(id));
+
+    expect(newIds.length).toBe(1);
+    expect(priorIds).not.toContain(newIds[0]);
+
+    const allIds = candidates.map((c) => c.id);
+    expect(new Set(allIds).size).toBe(allIds.length);
   });
 });

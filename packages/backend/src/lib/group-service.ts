@@ -1,7 +1,5 @@
 import { ApiError } from './api-error';
 import {
-  appendBundleTemplate,
-  getAdditionalBundleTemplates,
   getDefaultStaplesPreset,
   getIngredientCatalog,
   getBundleTemplates,
@@ -240,67 +238,6 @@ export function readBundleCandidates(
       isSelected: candidate.id === group.selectedBundleId
     }))
   };
-}
-
-export function generateAdditionalBundleCandidate(
-  groupId: string,
-  userId: string
-) {
-  const context = getViewerContext(groupId, userId);
-
-  if (context.viewerRole !== 'admin') {
-    throw new ApiError(
-      403,
-      'Only admins can generate additional bundles.'
-    );
-  }
-
-  const group = getGroupRecord(groupId)!;
-  const existingTemplateIds = new Set(
-    getBundleTemplates(groupId).map((template) => template.id)
-  );
-  const memberConstraints = listConstraintsForUsers(
-    group.members.map((member) => member.userId)
-  );
-
-  // Walk the deterministic pool and append the first not-yet-generated bundle
-  // that survives the same validation pipeline used for the full candidate set.
-  for (const template of getAdditionalBundleTemplates()) {
-    if (existingTemplateIds.has(template.id)) {
-      continue;
-    }
-
-    const candidateSet = buildValidatedCandidateSet(
-      group,
-      [template],
-      getGroupPantry(groupId),
-      memberConstraints
-    );
-    const [candidate] = candidateSet.candidates;
-
-    if (!candidate) {
-      continue;
-    }
-
-    appendBundleTemplate(groupId, template);
-
-    return {
-      groupId: group.id,
-      candidateSetId: `${group.id}:${group.pantrySnapshotVersion}:${group.activeBundleVersion}`,
-      generatedAt: new Date().toISOString(),
-      candidate: {
-        ...candidate,
-        pantrySnapshotVersion: group.pantrySnapshotVersion,
-        activeBundleVersion: group.activeBundleVersion,
-        isSelected: candidate.id === group.selectedBundleId
-      }
-    };
-  }
-
-  throw new ApiError(
-    409,
-    'No additional bundles are available to generate.'
-  );
 }
 
 export function selectBundleCandidate(

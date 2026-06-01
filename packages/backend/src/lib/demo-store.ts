@@ -93,61 +93,6 @@ const INGREDIENT_CATALOG: IngredientCatalogItem[] = [
 
 const DEFAULT_STAPLES_PRESET_IDS = ["olive-oil", "butter", "salt", "pepper"];
 
-// US11 "Generate 1 More": deterministic pool of extra bundles the generation
-// pipeline can append one at a time. Each is designed to validate against the
-// default demo pantry so a generate-one request returns a usable candidate.
-const ADDITIONAL_BUNDLE_TEMPLATES: BundleTemplate[] = [
-  {
-    id: "bundle-rustic-tomato-pasta",
-    title: "Rustic Tomato Pasta",
-    courses: [{ type: "main", title: "Rustic Tomato Garlic Pasta" }],
-    ingredientList: [
-      { ingredientId: "pasta", name: "Pasta", quantity: 1, unit: "boxes" },
-      { ingredientId: "tomatoes", name: "Tomatoes", quantity: 2, unit: "whole" },
-      { ingredientId: "garlic-cloves", name: "Garlic", quantity: 2, unit: "cloves" },
-    ],
-    instructions: [
-      "Boil the pasta until al dente.",
-      "Simmer tomatoes and garlic into a quick sauce and toss with the pasta.",
-    ],
-    rationale: "A fast pantry-driven pasta that leans on staples the group already has.",
-  },
-  {
-    id: "bundle-creamy-mushroom-chicken",
-    title: "Creamy Mushroom Chicken",
-    courses: [{ type: "main", title: "Skillet Mushroom Chicken" }],
-    ingredientList: [
-      { ingredientId: "chicken-fillets", name: "Chicken fillets", quantity: 1, unit: "fillets" },
-      { ingredientId: "mushrooms", name: "Mushrooms", quantity: 1, unit: "cups" },
-      { ingredientId: "cream", name: "Cream", quantity: 1, unit: "cups" },
-      { ingredientId: "garlic-cloves", name: "Garlic", quantity: 2, unit: "cloves" },
-    ],
-    instructions: [
-      "Sear the chicken, then set aside.",
-      "Soften mushrooms and garlic, add cream, and return the chicken to finish.",
-    ],
-    rationale: "A heartier single-skillet option for groups that want a protein-forward main.",
-  },
-  {
-    id: "bundle-garlic-bread-trio",
-    title: "Garlic Bread Trio",
-    courses: [
-      { type: "appetizer", title: "Tomato Topper" },
-      { type: "side", title: "Garlic Bread Trio" },
-    ],
-    ingredientList: [
-      { ingredientId: "bread-loaf", name: "Bread loaf", quantity: 1, unit: "loaf" },
-      { ingredientId: "garlic-cloves", name: "Garlic", quantity: 2, unit: "cloves" },
-      { ingredientId: "tomatoes", name: "Tomatoes", quantity: 1, unit: "whole" },
-    ],
-    instructions: [
-      "Slice and toast the bread, then rub with garlic.",
-      "Top with diced tomatoes for a shareable starter board.",
-    ],
-    rationale: "A light, low-effort starter that rounds out a shared dinner.",
-  },
-];
-
 type DemoState = {
   groups: Map<string, GroupRecord>;
   pantriesByGroup: Map<string, PantryItem[]>;
@@ -356,19 +301,6 @@ export function getGroupPantry(groupId: string) {
 
 export function getBundleTemplates(groupId: string) {
   return structuredClone(demoState.bundleTemplatesByGroup.get(groupId) ?? []);
-}
-
-export function getAdditionalBundleTemplates() {
-  return structuredClone(ADDITIONAL_BUNDLE_TEMPLATES);
-}
-
-export function appendBundleTemplate(groupId: string, template: BundleTemplate) {
-  // Persist the newly generated bundle so it appends to the group's candidate
-  // list and stays accessible via subsequent reads, without touching prior ones.
-  const existing = demoState.bundleTemplatesByGroup.get(groupId) ?? [];
-  existing.push(structuredClone(template));
-  demoState.bundleTemplatesByGroup.set(groupId, existing);
-  return structuredClone(template);
 }
 
 export function getIngredientCatalog() {
