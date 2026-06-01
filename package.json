@@ -14,9 +14,6 @@
   "author": "",
   "type": "commonjs",
   "main": "index.js",
-  "workspaces": [
-    "packages/*"
-  ],
   "scripts": {
     "format": "prettier --write './**/*.{js,jsx,ts,tsx,css,md,json}' --config ./.prettierrc"
   },
