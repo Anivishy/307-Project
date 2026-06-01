@@ -110,6 +110,53 @@ function serializeCandidateResponse(
   };
 }
 
+async function persistSelectedBundle(input: {
+  groupId: string;
+  bundleId: string;
+  pantrySnapshotVersion: number;
+  activeBundleVersion: number;
+  isForced: boolean;
+}) {
+  const { prisma } = await import('../prisma');
+  const result = await prisma.group.updateMany({
+    where: input.isForced
+      ? { id: input.groupId }
+      : {
+          id: input.groupId,
+          pantrySnapshotVersion: input.pantrySnapshotVersion,
+          activeBundleVersion: input.activeBundleVersion
+        },
+    data: {
+      selectedBundleId: input.bundleId,
+      activeBundleVersion: { increment: 1 }
+    }
+  });
+
+  if (result.count === 0) {
+    throw new ApiError(
+      input.isForced ? 404 : 409,
+      input.isForced
+        ? 'Group not found.'
+        : 'Candidate set is stale. Refresh or explicitly confirm before selecting.'
+    );
+  }
+
+  const group = await prisma.group.findUnique({
+    where: { id: input.groupId },
+    select: {
+      pantrySnapshotVersion: true,
+      activeBundleVersion: true,
+      selectedBundleId: true
+    }
+  });
+
+  if (!group) {
+    throw new ApiError(404, 'Group not found.');
+  }
+
+  return group;
+}
+
 export async function readGeneratedBundleCandidates(
   groupId: string,
   profileId: string
@@ -352,7 +399,7 @@ export async function selectGeneratedBundleCandidate(
   const stored = getStoredCandidateSet(groupId);
   const templates = resolveTemplatesForRead(
     groupId,
-    stored?.templates ?? getBundleTemplates(groupId)
+    stored?.templates ?? (loaded.isDemoGroup ? getBundleTemplates(groupId) : [])
   );
   const memberConstraints = await loadMemberConstraints(
     loaded.memberProfileIds,
@@ -375,13 +422,12 @@ export async function selectGeneratedBundleCandidate(
     );
   }
 
-  const { prisma } = await import('../prisma');
-  const group = await prisma.group.update({
-    where: { id: groupId },
-    data: {
-      selectedBundleId: bundleId,
-      activeBundleVersion: { increment: 1 }
-    }
+  const group = await persistSelectedBundle({
+    groupId,
+    bundleId,
+    pantrySnapshotVersion,
+    activeBundleVersion,
+    isForced
   });
 
   return {
