@@ -145,6 +145,9 @@ export function GroupDetailPage() {
     setStapleQuery('');
     setSettingsError('');
     setSettingsNotice('');
+    setBundlePayload(null);
+    setGenerationError('');
+    setGenerationNotice('');
   }, [groupId]);
 
   const groupName = groupInfo?.name ?? '…';

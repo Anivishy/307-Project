@@ -73,6 +73,42 @@ function serializeProfile(profile: Profile) {
   };
 }
 
+async function rekeyProfileReferences(
+  fromProfileId: string,
+  toProfileId: string
+) {
+  if (fromProfileId === toProfileId) {
+    return;
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await tx.groupMember.updateMany({
+      where: { profileId: fromProfileId },
+      data: { profileId: toProfileId }
+    });
+    await tx.ingredient.updateMany({
+      where: { ownerId: fromProfileId },
+      data: { ownerId: toProfileId }
+    });
+    await tx.menuRequest.updateMany({
+      where: { requestedById: fromProfileId },
+      data: { requestedById: toProfileId }
+    });
+    await tx.recipeIngredient.updateMany({
+      where: { fromProfileId },
+      data: { fromProfileId: toProfileId }
+    });
+    await tx.group.updateMany({
+      where: { ownerId: fromProfileId },
+      data: { ownerId: toProfileId }
+    });
+    await tx.profile.update({
+      where: { id: fromProfileId },
+      data: { id: toProfileId }
+    });
+  });
+}
+
 function isRecord(
   value: unknown
 ): value is Record<string, unknown> {
@@ -372,10 +408,14 @@ export async function findOrCreateProfileForEmail(
       });
 
       if (existingProfile) {
+        if (existingProfile.id !== id) {
+          await rekeyProfileReferences(existingProfile.id, id);
+        }
+
         const profile = await prisma.profile.update({
-          where: { email },
+          where: { id },
           data: {
-            id,
+            email,
             ...(displayName ? { displayName } : {})
           }
         });
