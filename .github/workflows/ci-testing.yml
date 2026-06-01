@@ -3,6 +3,8 @@ name: CI Testing
 on:
   push:
     branches: [main]
+  pull_request:
+    branches: [main]
 
 jobs:
   build:
@@ -13,6 +15,8 @@ jobs:
         with:
           node-version: 20
       - run: npm ci
-      - run: npm run -w express-backend lint
+      - run: npm run -w backend lint
       - run: npm run -w react-frontend lint
       - run: npm run -w react-frontend build
+      - run: npm run -w backend test
+      - run: npm run -w react-frontend test
