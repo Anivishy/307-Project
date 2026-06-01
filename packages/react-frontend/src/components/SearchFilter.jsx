@@ -1,5 +1,5 @@
 import { Filter, Search } from "lucide-react";
-import { categories } from "../data/recipes.js";
+import { categories } from "@/data/recipes.js";
 
 export function SearchFilter({ search, onSearchChange, category, onCategoryChange }) {
   return (

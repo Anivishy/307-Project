@@ -2,8 +2,8 @@ import { Loader2, MailWarning } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import creamyPan from '../../assets/creamy-pan.jpg';
-import { parseMagicLinkCallback } from '../lib/authCallback.js';
-import { completeMagicLinkSession } from '../lib/authApi.js';
+import { parseMagicLinkCallback } from '@/lib/authCallback.js';
+import { completeMagicLinkSession } from '@/lib/authApi.js';
 
 export function AuthCallbackPage() {
   const navigate = useNavigate();

@@ -1,7 +1,7 @@
 import { Check, X } from "lucide-react";
 import { Link } from "react-router-dom";
-import { PageHeader } from "../components/PageHeader.jsx";
-import { approvalRequests } from "../data/recipes.js";
+import { PageHeader } from "@/components/PageHeader.jsx";
+import { approvalRequests } from "@/data/recipes.js";
 
 export function ApprovalsPage() {
   return (

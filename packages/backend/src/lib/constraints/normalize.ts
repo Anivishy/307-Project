@@ -8,9 +8,16 @@ const constraintFields = [
   "allergies",
   "medicalRestrictions",
   "neverIncludeIngredientIds",
+  "diets",
+  "intolerances",
+  "preferredCuisines",
+  "excludedCuisines",
+  "dislikedIngredients",
 ] as const;
 
 type ConstraintField = (typeof constraintFields)[number];
+
+const SUPPORTED_SPICE_LEVELS = new Set(["mild", "medium", "hot"]);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -35,7 +42,22 @@ export function normalizeTextConstraints(values: string[] = []): string[] {
 }
 
 export function normalizeIngredientIds(values: string[] = []): string[] {
-  return normalizeList(values);
+  return Array.from(
+    new Set(
+      values
+        .map((value) => value.trim())
+        .filter(Boolean)
+    )
+  );
+}
+
+export function normalizeSpiceLevel(value: string | null | undefined): string | null {
+  if (value === null || value === undefined) {
+    return null;
+  }
+
+  const normalized = normalizeConstraintToken(value);
+  return SUPPORTED_SPICE_LEVELS.has(normalized) ? normalized : normalized;
 }
 
 export function emptyConstraints(userId: string): UserConstraints {
@@ -44,6 +66,12 @@ export function emptyConstraints(userId: string): UserConstraints {
     allergies: [],
     medicalRestrictions: [],
     neverIncludeIngredientIds: [],
+    diets: [],
+    intolerances: [],
+    preferredCuisines: [],
+    excludedCuisines: [],
+    dislikedIngredients: [],
+    spiceLevel: null,
     updatedAt: new Date(0).toISOString(),
   };
 }
@@ -80,6 +108,29 @@ export function parseConstraintsPayload(
       field === "neverIncludeIngredientIds"
         ? normalizeIngredientIds(rawValue)
         : normalizeTextConstraints(rawValue);
+  }
+
+  const hasSpiceLevel = Object.prototype.hasOwnProperty.call(source, "spiceLevel");
+
+  if (hasSpiceLevel) {
+    const rawValue = source.spiceLevel;
+
+    if (rawValue !== null && typeof rawValue !== "string") {
+      issues.push("spiceLevel must be a string or null");
+    } else {
+      const normalizedSpiceLevel = normalizeSpiceLevel(rawValue);
+
+      if (
+        normalizedSpiceLevel !== null &&
+        !SUPPORTED_SPICE_LEVELS.has(normalizedSpiceLevel)
+      ) {
+        issues.push("spiceLevel must be mild, medium, or hot");
+      } else {
+        value.spiceLevel = normalizedSpiceLevel;
+      }
+    }
+  } else if (!options.partial) {
+    value.spiceLevel = null;
   }
 
   if (options.partial && Object.keys(value).length === 0 && issues.length === 0) {

@@ -1,0 +1,17 @@
+{
+  "python.languageServer": "None",
+  "python.analysis.languageServerMode": "light",
+  "python.analysis.typeCheckingMode": "off",
+  "python.analysis.diagnosticMode": "openFilesOnly",
+  "python.analysis.indexing": false,
+  "python.analysis.autoImportCompletions": false,
+  "python.analysis.autoSearchPaths": false,
+  "python.analysis.useLibraryCodeForTypes": false,
+  "python.terminal.activateEnvironment": false,
+  "python.terminal.activateEnvInCurrentTerminal": false,
+  "python-envs.workspaceSearchPaths": [],
+  "ruff.enable": false,
+  "ruff.lint.enable": false,
+  "ruff.organizeImports": false,
+  "ruff.fixAll": false
+}

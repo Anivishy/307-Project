@@ -1,9 +1,8 @@
-import { Bell, Plus } from "lucide-react";
-import { GlassIconButton } from "./GlassIconButton.jsx";
+import { Plus } from "lucide-react";
+import { GlassIconButton } from "@/components/GlassIconButton.jsx";
+import { NotificationBell } from "@/components/NotificationBell.jsx";
 
 export function PageHeader({ eyebrow, title, subtitle, action = "bell" }) {
-  const ActionIcon = action === "plus" ? Plus : Bell;
-
   return (
     <header className="page-header">
       <div>
@@ -11,7 +10,12 @@ export function PageHeader({ eyebrow, title, subtitle, action = "bell" }) {
         <h1>{title}</h1>
         {subtitle && <p className="page-subtitle">{subtitle}</p>}
       </div>
-      <GlassIconButton icon={ActionIcon} label={action === "plus" ? "Add" : "Notifications"} accent={action === "plus"} />
+      <div className="page-header__actions">
+        {action === "plus" && (
+          <GlassIconButton icon={Plus} label="Add" accent />
+        )}
+        <NotificationBell />
+      </div>
     </header>
   );
 }

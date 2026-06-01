@@ -5,7 +5,7 @@ import creamyPan from '../../assets/creamy-pan.jpg';
 import {
   signInWithPassword,
   signUpWithPassword
-} from '../lib/authApi.js';
+} from '@/lib/authApi.js';
 
 export function SignInPage({ mode = 'signin' }) {
   const isSignUp = mode === 'signup';

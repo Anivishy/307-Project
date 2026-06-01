@@ -4,6 +4,10 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:mock-all": "SPOONACULAR_MOCK_CATALOG=true SPOONACULAR_MOCK_GENERATION=true next dev",
+    "dev:live-generate": "SPOONACULAR_MOCK_CATALOG=true SPOONACULAR_MOCK_GENERATION=false next dev",
+    "dev:live-catalog": "SPOONACULAR_MOCK_CATALOG=false SPOONACULAR_MOCK_GENERATION=true next dev",
+    "dev:live-all": "SPOONACULAR_MOCK_CATALOG=false SPOONACULAR_MOCK_GENERATION=false next dev",
     "predev": "npm run prisma:generate",
     "build": "next build",
     "prebuild": "npm run prisma:generate",

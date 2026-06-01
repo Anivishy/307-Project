@@ -1,11 +1,11 @@
 import { ArrowUpRight, Check, Copy, KeyRound, Link as LinkIcon, Plus, UsersRound } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { EmptyState } from "../components/EmptyState.jsx";
-import { PageHeader } from "../components/PageHeader.jsx";
-import { groupImages } from "../data/recipes.js";
-import { createGroup, getGroups, joinGroup } from "../lib/groupApi.js";
-import { getSavedSession } from "../lib/session.js";
+import { EmptyState } from "@/components/EmptyState.jsx";
+import { PageHeader } from "@/components/PageHeader.jsx";
+import { groupImages } from "@/data/recipes.js";
+import { createGroup, getGroups, joinGroup } from "@/lib/groupApi.js";
+import { getSavedSession } from "@/lib/session.js";
 
 function buildInviteLink(inviteCode) {
   return `${window.location.origin}/join/${inviteCode}`;

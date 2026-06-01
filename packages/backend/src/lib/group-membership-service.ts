@@ -8,7 +8,6 @@ import {
   normalizeOptionalText,
   normalizeRequiredText
 } from './input-normalization';
-import { prisma } from './prisma';
 import { assertUuid } from './request-user';
 
 type GroupCreateInput = {
@@ -23,6 +22,11 @@ type GroupJoinInput = {
 type GroupWithMembers = Group & {
   members: GroupMember[];
 };
+
+async function getPrismaClient() {
+  const { prisma } = await import('./prisma');
+  return prisma;
+}
 
 function normalizeInviteCode(value: unknown) {
   const inviteCode = normalizeRequiredText(value, 'inviteCode', 32)
@@ -83,6 +87,7 @@ function serializeGroup(
 }
 
 async function ensureProfileExists(profileId: string) {
+  const prisma = await getPrismaClient();
   const profile = await prisma.profile.findUnique({
     where: { id: profileId },
     select: { id: true }
@@ -96,6 +101,7 @@ async function ensureProfileExists(profileId: string) {
 export async function listUserGroups(profileId: string) {
   assertUuid(profileId, 'authenticated user id');
 
+  const prisma = await getPrismaClient();
   const groups = await prisma.group.findMany({
     where: {
       members: {
@@ -126,6 +132,7 @@ export async function createUserGroup(
   );
   const inviteCode = buildInviteCode(name);
 
+  const prisma = await getPrismaClient();
   const group = await prisma.group.create({
     data: {
       ownerId: profileId,
@@ -152,6 +159,7 @@ export async function getGroupMembers(
   assertUuid(groupId, 'groupId');
   assertUuid(profileId, 'authenticated user id');
 
+  const prisma = await getPrismaClient();
   const group = await prisma.group.findUnique({
     where: { id: groupId },
     include: {
@@ -207,6 +215,7 @@ export async function getGroupById(
   assertUuid(groupId, 'groupId');
   assertUuid(profileId, 'authenticated user id');
 
+  const prisma = await getPrismaClient();
   const group = await prisma.group.findUnique({
     where: { id: groupId },
     include: { members: true }
@@ -231,6 +240,7 @@ export async function getGroupPreviewByInviteCode(
   inviteCode: unknown
 ) {
   const code = normalizeInviteCode(inviteCode);
+  const prisma = await getPrismaClient();
   const group = await prisma.group.findUnique({
     where: { inviteCode: code },
     include: { members: true }
@@ -257,6 +267,7 @@ export async function joinUserGroup(
   await ensureProfileExists(profileId);
 
   const inviteCode = normalizeInviteCode(input.inviteCode);
+  const prisma = await getPrismaClient();
   const group = await prisma.group.findUnique({
     where: { inviteCode },
     include: { members: true }

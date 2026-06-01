@@ -4,7 +4,7 @@ import {
   getSessionRefreshToken,
   isSessionExpiringSoon,
   saveSession
-} from './session.js';
+} from '@/lib/session.js';
 
 async function readJson(response) {
   const payload = await response.json();

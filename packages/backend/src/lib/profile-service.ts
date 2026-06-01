@@ -5,7 +5,6 @@ import {
   normalizeNullableText,
   normalizeOptionalText
 } from './input-normalization';
-import { prisma } from './prisma';
 import { isPrismaError } from './prisma-utils';
 import { assertUuid } from './request-user';
 
@@ -48,6 +47,11 @@ type ProfilePictureData = {
   profilePictureSizeBytes: number | null;
 };
 
+async function getPrismaClient() {
+  const { prisma } = await import('./prisma');
+  return prisma;
+}
+
 function serializeProfile(profile: Profile) {
   // Convert Date objects to ISO strings so API responses are plain JSON.
   return {
@@ -62,6 +66,12 @@ function serializeProfile(profile: Profile) {
     medicalRestrictions: profile.medicalRestrictions,
     neverIncludeIngredientIds:
       profile.neverIncludeIngredientIds,
+    diets: profile.diets,
+    intolerances: profile.intolerances,
+    preferredCuisines: profile.preferredCuisines,
+    excludedCuisines: profile.excludedCuisines,
+    dislikedIngredients: profile.dislikedIngredients,
+    spiceLevel: profile.spiceLevel,
     createdAt: profile.createdAt.toISOString(),
     updatedAt: profile.updatedAt.toISOString()
   };
@@ -302,6 +312,8 @@ export async function createProfile(input: ProfileCreateInput) {
     assertUuid(id, 'id');
   }
 
+  const prisma = await getPrismaClient();
+
   try {
     const profile = await prisma.profile.create({
       data: {
@@ -332,6 +344,7 @@ export async function createProfile(input: ProfileCreateInput) {
 export async function readProfile(profileId: string) {
   assertUuid(profileId, 'profileId');
 
+  const prisma = await getPrismaClient();
   const profile = await prisma.profile.findUnique({
     where: { id: profileId }
   });
@@ -358,6 +371,8 @@ export async function findOrCreateProfileForEmail(
     'displayName',
     DISPLAY_NAME_MAX_LENGTH
   );
+
+  const prisma = await getPrismaClient();
 
   try {
     if (id) {
@@ -438,6 +453,8 @@ export async function updateProfileIdentity(
     );
   }
 
+  const prisma = await getPrismaClient();
+
   try {
     const profile = await prisma.profile.update({
       where: { id: profileId },
@@ -459,6 +476,8 @@ export async function updateProfileEmail(
   email: string
 ) {
   assertUuid(profileId, 'authenticated user id');
+
+  const prisma = await getPrismaClient();
 
   try {
     const profile = await prisma.profile.update({
@@ -487,6 +506,8 @@ export async function anonymizeProfileForAccountDeletion(
   profileId: string
 ) {
   assertUuid(profileId, 'authenticated user id');
+
+  const prisma = await getPrismaClient();
 
   try {
     await prisma.$transaction([

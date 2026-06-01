@@ -1,12 +1,10 @@
 import type { GroupRole } from '../generated/prisma';
 import { ApiError } from './api-error';
-import {
-  findIngredientById,
-  findMissingIngredientIds,
-  listIngredients
-} from './constraints/ingredients';
 import type { IngredientSummary } from './constraints/types';
-import { prisma } from './prisma';
+import {
+  findCatalogIngredientById,
+  findMissingCatalogIngredientIds
+} from './ingredient-catalog-service';
 import { assertUuid } from './request-user';
 
 type GroupSettingsUpdate = {
@@ -15,29 +13,41 @@ type GroupSettingsUpdate = {
   customStaples?: string[];
 };
 
-const DEFAULT_STAPLE_IDS = ['olive-oil', 'butter', 'salt', 'pepper'];
+const DEFAULT_STAPLE_IDS = ['4053', '1001', '2047', '1002030'];
+
+async function getPrismaClient() {
+  const { prisma } = await import('./prisma');
+  return prisma;
+}
 
 function roleLabel(role: GroupRole) {
   return role === 'MEMBER' ? 'member' : 'admin';
 }
 
-function resolveIngredientIds(ids: string[]): IngredientSummary[] {
-  return ids
-    .map((id) => findIngredientById(id))
-    .filter((ingredient): ingredient is IngredientSummary =>
+async function resolveIngredientIds(
+  ids: string[]
+): Promise<IngredientSummary[]> {
+  const ingredients = await Promise.all(
+    ids.map((id) => findCatalogIngredientById(id))
+  );
+
+  return ingredients.filter(
+    (ingredient): ingredient is IngredientSummary =>
       Boolean(ingredient)
-    );
+  );
 }
 
-function normalizeStapleIds(ids: string[]) {
+async function normalizeStapleIds(ids: string[]) {
   const normalizedIds = [
     ...new Set(
       ids
-        .map((id) => id.trim().toLowerCase())
+        .map((id) => id.trim())
         .filter((id) => id.length > 0)
     )
   ];
-  const missingIds = findMissingIngredientIds(normalizedIds);
+  const missingIds = await findMissingCatalogIngredientIds(
+    normalizedIds
+  );
 
   if (missingIds.length > 0) {
     throw new ApiError(
@@ -56,6 +66,7 @@ async function getGroupWithMembership(
   assertUuid(groupId, 'groupId');
   assertUuid(profileId, 'authenticated user id');
 
+  const prisma = await getPrismaClient();
   const group = await prisma.group.findUnique({
     where: { id: groupId },
     include: { members: true }
@@ -76,7 +87,7 @@ async function getGroupWithMembership(
   return { group, membership };
 }
 
-function serializeGroupSettings(
+async function serializeGroupSettings(
   group: Awaited<ReturnType<typeof getGroupWithMembership>>['group'],
   viewerRole: GroupRole
 ) {
@@ -85,9 +96,12 @@ function serializeGroupSettings(
     groupName: group.name,
     allowMissingIngredients: group.allowMissingIngredients,
     staplesEnabled: group.staplesEnabled,
-    defaultStaplesPreset: resolveIngredientIds(DEFAULT_STAPLE_IDS),
-    customStaples: resolveIngredientIds(group.customStaples ?? []),
-    ingredientCatalog: listIngredients(),
+    defaultStaplesPreset: await resolveIngredientIds(
+      DEFAULT_STAPLE_IDS
+    ),
+    customStaples: await resolveIngredientIds(
+      group.customStaples ?? []
+    ),
     pantrySnapshotVersion: group.pantrySnapshotVersion,
     activeBundleVersion: group.activeBundleVersion,
     selectedBundleId: group.selectedBundleId,
@@ -133,10 +147,15 @@ export async function savePersistedGroupSettings(
       ? { staplesEnabled: updates.staplesEnabled }
       : {}),
     ...(updates.customStaples !== undefined
-      ? { customStaples: normalizeStapleIds(updates.customStaples) }
+      ? {
+          customStaples: await normalizeStapleIds(
+            updates.customStaples
+          )
+        }
       : {})
   };
 
+  const prisma = await getPrismaClient();
   const group = await prisma.group.update({
     where: { id: groupId },
     data,

@@ -4,7 +4,6 @@ import {
   normalizeNullableText,
   normalizeRequiredText
 } from './input-normalization';
-import { prisma } from './prisma';
 import { isPrismaError } from './prisma-utils';
 import { assertUuid } from './request-user';
 
@@ -19,6 +18,11 @@ type IngredientCreateInput = {
 };
 
 type IngredientUpdateInput = Partial<IngredientCreateInput>;
+
+async function getPrismaClient() {
+  const { prisma } = await import('./prisma');
+  return prisma;
+}
 
 function normalizeCanonicalIngredientId(value: unknown) {
   const normalized = normalizeNullableText(
@@ -76,19 +80,90 @@ function serializeIngredient(ingredient: Ingredient) {
 
 async function ensureProfileExists(ownerId: string) {
   // Fail with a clear 404 before relying on a database foreign-key error.
+  const prisma = await getPrismaClient();
   const profile = await prisma.profile.findUnique({
     where: { id: ownerId },
-    select: { id: true }
+    select: { id: true, displayName: true, email: true }
   });
 
   if (!profile) {
     throw new ApiError(404, 'Profile not found.');
+  }
+
+  return profile;
+}
+
+function formatIngredientQuantity(ingredient: Ingredient) {
+  if (ingredient.quantity === null) {
+    return null;
+  }
+
+  const quantity = Number(ingredient.quantity);
+  const unit = ingredient.unit?.trim();
+
+  return unit ? `${quantity} ${unit}` : String(quantity);
+}
+
+async function createIngredientAddedNotifications(
+  actor: { id: string; displayName: string | null; email: string },
+  ingredient: Ingredient
+) {
+  const prisma = await getPrismaClient();
+  const groupMemberships = await prisma.groupMember.findMany({
+    where: { profileId: actor.id },
+    include: {
+      group: {
+        select: {
+          id: true,
+          name: true,
+          members: {
+            where: {
+              profileId: { not: actor.id }
+            },
+            select: { profileId: true }
+          }
+        }
+      }
+    }
+  });
+
+  const actorName = actor.displayName ?? actor.email;
+  const quantity = formatIngredientQuantity(ingredient);
+  const notificationRows = groupMemberships.flatMap(({ group }) =>
+    group.members.map((member) => ({
+      recipientId: member.profileId,
+      actorId: actor.id,
+      groupId: group.id,
+      ingredientId: ingredient.id,
+      type: 'INGREDIENT_ADDED' as const,
+      title: `${actorName} added ${ingredient.name}`,
+      message: `${actorName} added ${ingredient.name}${
+        quantity ? ` (${quantity})` : ''
+      } to ${group.name}.`,
+      metadata: {
+        actorName,
+        ingredientName: ingredient.name,
+        groupName: group.name,
+        quantity:
+          ingredient.quantity === null
+            ? null
+            : Number(ingredient.quantity),
+        unit: ingredient.unit
+      }
+    }))
+  );
+
+  if (notificationRows.length > 0) {
+    await prisma.notification.createMany({
+      data: notificationRows
+    });
   }
 }
 
 export async function listIngredients(ownerId: string) {
   assertUuid(ownerId, 'ownerId');
 
+  const prisma = await getPrismaClient();
   const ingredients = await prisma.ingredient.findMany({
     where: { ownerId },
     orderBy: [{ name: 'asc' }, { createdAt: 'asc' }]
@@ -102,7 +177,9 @@ export async function createIngredient(
   input: IngredientCreateInput
 ) {
   assertUuid(ownerId, 'ownerId');
-  await ensureProfileExists(ownerId);
+  const owner = await ensureProfileExists(ownerId);
+
+  const prisma = await getPrismaClient();
 
   try {
     const ingredient = await prisma.ingredient.create({
@@ -121,6 +198,8 @@ export async function createIngredient(
         )
       }
     });
+
+    await createIngredientAddedNotifications(owner, ingredient);
 
     return serializeIngredient(ingredient);
   } catch (error) {
@@ -179,6 +258,7 @@ export async function updateIngredient(
     );
   }
 
+  const prisma = await getPrismaClient();
   const existingIngredient = await prisma.ingredient.findFirst({
     where: { id: ingredientId, ownerId },
     select: { id: true }
@@ -214,6 +294,7 @@ export async function deleteIngredient(
   assertUuid(ownerId, 'ownerId');
   assertUuid(ingredientId, 'ingredientId');
 
+  const prisma = await getPrismaClient();
   const result = await prisma.ingredient.deleteMany({
     where: { id: ingredientId, ownerId }
   });
