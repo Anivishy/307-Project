@@ -1,7 +1,6 @@
 import type { GroupRole } from '../../generated/prisma';
 import { ApiError } from '../api-error';
 import type { GroupRecord, PantryItem } from '../demo-store';
-import { prisma } from '../prisma';
 import { assertUuid } from '../request-user';
 
 function mapRole(role: GroupRole): 'admin' | 'member' {
@@ -18,6 +17,11 @@ export type LoadedGenerationGroup = {
 
 export function isDemoGroupId(groupId: string) {
   return !/^[0-9a-f-]{36}$/i.test(groupId);
+}
+
+async function getPrismaClient() {
+  const { prisma } = await import('../prisma');
+  return prisma;
 }
 
 export async function loadGenerationGroup(
@@ -55,6 +59,7 @@ export async function loadGenerationGroup(
   assertUuid(groupId, 'groupId');
   assertUuid(profileId, 'authenticated user id');
 
+  const prisma = await getPrismaClient();
   const group = await prisma.group.findUnique({
     where: { id: groupId },
     include: {

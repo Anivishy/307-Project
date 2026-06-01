@@ -5,7 +5,6 @@ import {
   findCatalogIngredientById,
   findMissingCatalogIngredientIds
 } from './ingredient-catalog-service';
-import { prisma } from './prisma';
 import { assertUuid } from './request-user';
 
 type GroupSettingsUpdate = {
@@ -15,6 +14,11 @@ type GroupSettingsUpdate = {
 };
 
 const DEFAULT_STAPLE_IDS = ['4053', '1001', '2047', '1002030'];
+
+async function getPrismaClient() {
+  const { prisma } = await import('./prisma');
+  return prisma;
+}
 
 function roleLabel(role: GroupRole) {
   return role === 'MEMBER' ? 'member' : 'admin';
@@ -62,6 +66,7 @@ async function getGroupWithMembership(
   assertUuid(groupId, 'groupId');
   assertUuid(profileId, 'authenticated user id');
 
+  const prisma = await getPrismaClient();
   const group = await prisma.group.findUnique({
     where: { id: groupId },
     include: { members: true }
@@ -150,6 +155,7 @@ export async function savePersistedGroupSettings(
       : {})
   };
 
+  const prisma = await getPrismaClient();
   const group = await prisma.group.update({
     where: { id: groupId },
     data,
