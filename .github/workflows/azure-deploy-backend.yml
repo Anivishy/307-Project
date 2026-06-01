@@ -14,7 +14,10 @@ jobs:
         with:
           node-version: 22
 
-      - name: Install dependencies
+      - name: Install root dependencies
+        run: npm ci
+
+      - name: Install backend dependencies
         working-directory: packages/backend
         run: npm ci
 
