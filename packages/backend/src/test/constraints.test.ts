@@ -1,10 +1,11 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import {
-  findMissingIngredientIds,
-  searchIngredients
-} from '../lib/constraints/ingredients.ts';
 import { parseConstraintsPayload } from '../lib/constraints/normalize.ts';
+import {
+  findMissingCatalogIngredientIds,
+  resetIngredientCatalogCacheForTests,
+  searchCatalogIngredients
+} from '../lib/ingredient-catalog-service.ts';
 import {
   getUserConstraints,
   patchUserConstraints,
@@ -19,7 +20,9 @@ import {
 
 describe('US5 hard dietary constraints', () => {
   beforeEach(() => {
+    vi.stubEnv('SPOONACULAR_MOCK', 'true');
     resetConstraintStoreForTests();
+    resetIngredientCatalogCacheForTests();
   });
 
   it('parseConstraintsPayload normalizes and deduplicates constraint fields', () => {
@@ -27,7 +30,13 @@ describe('US5 hard dietary constraints', () => {
       {
         allergies: [' Peanuts ', 'peanuts', ''],
         medicalRestrictions: ['Low Sodium', ' low   sodium '],
-        neverIncludeIngredientIds: [' SHRIMP ', 'shrimp']
+        neverIncludeIngredientIds: [' 15152 ', '15152'],
+        diets: [' Vegan ', 'vegan'],
+        intolerances: ['Dairy', ' dairy '],
+        preferredCuisines: ['Italian', ' italian '],
+        excludedCuisines: ['Greek'],
+        dislikedIngredients: [' Cilantro ', 'cilantro'],
+        spiceLevel: ' Medium '
       },
       { partial: false }
     );
@@ -40,8 +49,31 @@ describe('US5 hard dietary constraints', () => {
         'low sodium'
       ]);
       expect(parsed.value.neverIncludeIngredientIds).toEqual([
-        'shrimp'
+        '15152'
       ]);
+      expect(parsed.value.diets).toEqual(['vegan']);
+      expect(parsed.value.intolerances).toEqual(['dairy']);
+      expect(parsed.value.preferredCuisines).toEqual(['italian']);
+      expect(parsed.value.excludedCuisines).toEqual(['greek']);
+      expect(parsed.value.dislikedIngredients).toEqual(['cilantro']);
+      expect(parsed.value.spiceLevel).toBe('medium');
+    }
+  });
+
+  it('parseConstraintsPayload rejects unsupported spice levels', () => {
+    const parsed = parseConstraintsPayload(
+      {
+        spiceLevel: 'extreme'
+      },
+      { partial: true }
+    );
+
+    expect(parsed.ok).toBe(false);
+
+    if (!parsed.ok) {
+      expect(parsed.issues).toContain(
+        'spiceLevel must be mild, medium, or hot'
+      );
     }
   });
 
@@ -49,7 +81,9 @@ describe('US5 hard dietary constraints', () => {
     replaceUserConstraints('user-1', {
       allergies: ['peanuts'],
       medicalRestrictions: ['gluten'],
-      neverIncludeIngredientIds: ['shrimp']
+      neverIncludeIngredientIds: ['15152'],
+      diets: ['vegan'],
+      preferredCuisines: ['italian']
     });
 
     patchUserConstraints('user-1', {
@@ -64,13 +98,18 @@ describe('US5 hard dietary constraints', () => {
     ).toEqual(['gluten']);
     expect(
       getUserConstraints('user-1').neverIncludeIngredientIds
-    ).toEqual(['shrimp']);
+    ).toEqual(['15152']);
+    expect(getUserConstraints('user-1').diets).toEqual(['vegan']);
+    expect(getUserConstraints('user-1').preferredCuisines).toEqual([
+      'italian'
+    ]);
   });
 
-  it('ingredient search supports typeahead and invalid id detection', () => {
-    expect(searchIngredients('shr').at(0)?.id).toBe('shrimp');
+  it('ingredient search supports typeahead and invalid id detection', async () => {
+    const result = await searchCatalogIngredients('shr', 5);
+    expect(result.ingredients.at(0)?.id).toBe('15152');
     expect(
-      findMissingIngredientIds(['shrimp', 'not-real'])
+      await findMissingCatalogIngredientIds(['15152', 'not-real'])
     ).toEqual(['not-real']);
   });
 
@@ -82,7 +121,7 @@ describe('US5 hard dietary constraints', () => {
           name: 'Main',
           ingredients: [
             {
-              id: 'shrimp',
+              id: '15152',
               name: 'Shrimp',
               tags: ['shellfish']
             },
@@ -101,7 +140,7 @@ describe('US5 hard dietary constraints', () => {
         userId: 'user-1',
         allergies: ['shellfish'],
         medicalRestrictions: ['sodium'],
-        neverIncludeIngredientIds: ['shrimp'],
+        neverIncludeIngredientIds: ['15152'],
         updatedAt: new Date().toISOString()
       }
     ]);

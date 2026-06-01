@@ -1,7 +1,8 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { GET as getBundleCandidates } from "../app/api/groups/[groupId]/bundle-candidates/route";
 import { GET as getSettings, PATCH as patchSettings } from "../app/api/groups/[groupId]/settings/route";
 import { DEMO_ADMIN_USER_ID, DEMO_MEMBER_USER_ID, resetDemoState } from "./demo-store";
+import { resetCandidateStoreForTests } from "./generation/bundle-candidate-store";
 
 const GROUP_ID = "dorm-dinner-crew";
 
@@ -23,6 +24,8 @@ function createRequest(url: string, userId: string, init?: RequestInit) {
 describe("US7 missing ingredient settings", () => {
   beforeEach(() => {
     resetDemoState();
+    resetCandidateStoreForTests();
+    vi.stubEnv('SPOONACULAR_MOCK_GENERATION', 'true');
   });
 
   it("reflects the current allowMissingIngredients value on load", async () => {

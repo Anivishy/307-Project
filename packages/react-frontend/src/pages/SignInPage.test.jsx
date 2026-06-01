@@ -5,8 +5,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   signInWithPassword,
   signUpWithPassword
-} from '../lib/authApi.js';
-import { SignInPage } from './SignInPage.jsx';
+} from '@/lib/authApi.js';
+import { SignInPage } from '@/pages/SignInPage.jsx';
 
 vi.mock('../lib/authApi.js', () => ({
   signInWithPassword: vi.fn(),

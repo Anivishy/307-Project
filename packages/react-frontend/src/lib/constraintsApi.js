@@ -1,8 +1,13 @@
-import { apiFetch } from './api.js';
+import { apiFetch } from '@/lib/api.js';
 
 export async function fetchConstraints() {
   const payload = await apiFetch('/api/profile/constraints');
   return payload.constraints;
+}
+
+export async function fetchSpoonacularDefinitions() {
+  const payload = await apiFetch('/api/spoonacular/definitions');
+  return payload.definitions;
 }
 
 export async function saveConstraints(input) {

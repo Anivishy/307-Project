@@ -43,6 +43,12 @@ model Profile {
   allergies                 String[] @default([])
   medicalRestrictions       String[] @default([]) @map("medical_restrictions")
   neverIncludeIngredientIds String[] @default([]) @map("never_include_ingredient_ids")
+  diets                     String[] @default([])
+  intolerances              String[] @default([])
+  preferredCuisines         String[] @default([]) @map("preferred_cuisines")
+  excludedCuisines          String[] @default([]) @map("excluded_cuisines")
+  dislikedIngredients       String[] @default([]) @map("disliked_ingredients")
+  spiceLevel                String?  @map("spice_level") @db.VarChar(40)
   createdAt                 DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt                 DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 

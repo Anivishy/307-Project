@@ -1,8 +1,8 @@
 import { ArrowLeft, Clock3, Flame, Heart, UsersRound } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
-import { GlassIconButton } from "../components/GlassIconButton.jsx";
-import { EmptyState } from "../components/EmptyState.jsx";
-import { recipes } from "../data/recipes.js";
+import { GlassIconButton } from "@/components/GlassIconButton.jsx";
+import { EmptyState } from "@/components/EmptyState.jsx";
+import { recipes } from "@/data/recipes.js";
 
 export function RecipeDetailPage() {
   const { recipeId } = useParams();

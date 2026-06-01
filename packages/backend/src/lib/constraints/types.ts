@@ -15,11 +15,28 @@ export type UserConstraints = {
   allergies: string[];
   medicalRestrictions: string[];
   neverIncludeIngredientIds: string[];
+  diets?: string[];
+  intolerances?: string[];
+  preferredCuisines?: string[];
+  excludedCuisines?: string[];
+  dislikedIngredients?: string[];
+  spiceLevel?: string | null;
   updatedAt: string;
 };
 
 export type UserConstraintsInput = Partial<
-  Pick<UserConstraints, "allergies" | "medicalRestrictions" | "neverIncludeIngredientIds">
+  Pick<
+    UserConstraints,
+    | "allergies"
+    | "medicalRestrictions"
+    | "neverIncludeIngredientIds"
+    | "diets"
+    | "intolerances"
+    | "preferredCuisines"
+    | "excludedCuisines"
+    | "dislikedIngredients"
+    | "spiceLevel"
+  >
 >;
 
 export type CandidateIngredient = {

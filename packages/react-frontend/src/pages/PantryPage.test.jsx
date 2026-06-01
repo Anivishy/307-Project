@@ -8,8 +8,8 @@ import {
   it,
   vi
 } from 'vitest';
-import { saveSession } from '../lib/session.js';
-import { PantryPage } from './PantryPage.jsx';
+import { saveSession } from '@/lib/session.js';
+import { PantryPage } from '@/pages/PantryPage.jsx';
 
 const catalogPayload = {
   ingredients: [
@@ -77,7 +77,7 @@ describe('PantryPage controls', () => {
     fetchMock = vi.fn(async (input, options = {}) => {
       const url = String(input);
 
-      if (url === '/api/ingredients/catalog') {
+      if (url.startsWith('/api/ingredients/catalog')) {
         return jsonResponse(catalogPayload);
       }
 
@@ -119,6 +119,7 @@ describe('PantryPage controls', () => {
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     localStorage.clear();
     vi.unstubAllGlobals();
   });
@@ -133,6 +134,16 @@ describe('PantryPage controls', () => {
     await user.type(
       screen.getByLabelText('Ingredient'),
       'Tomato'
+    );
+    await waitFor(() => {
+      expect(
+        fetchMock.mock.calls.some(([url]) =>
+          String(url).includes('/api/ingredients/catalog?q=Tomato')
+        )
+      ).toBe(true);
+    });
+    await user.click(
+      await screen.findByRole('button', { name: /^Tomato/i })
     );
     await user.clear(screen.getByLabelText('Quantity'));
     await user.type(screen.getByLabelText('Quantity'), '3');

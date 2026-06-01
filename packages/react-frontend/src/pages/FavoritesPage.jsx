@@ -1,8 +1,8 @@
 import { Link } from "react-router-dom";
-import { EmptyState } from "../components/EmptyState.jsx";
-import { PageHeader } from "../components/PageHeader.jsx";
-import { RecipeCard } from "../components/RecipeCard.jsx";
-import { recipes } from "../data/recipes.js";
+import { EmptyState } from "@/components/EmptyState.jsx";
+import { PageHeader } from "@/components/PageHeader.jsx";
+import { RecipeCard } from "@/components/RecipeCard.jsx";
+import { recipes } from "@/data/recipes.js";
 
 export function FavoritesPage() {
   const savedRecipes = recipes.filter((recipe) => recipe.saved);

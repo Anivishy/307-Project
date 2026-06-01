@@ -2,6 +2,7 @@ import {
   AlertTriangle,
   Check,
   ImagePlus,
+  Info,
   Loader2,
   LockKeyhole,
   Mail,
@@ -12,10 +13,10 @@ import {
   UserRound
 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
-import { IngredientTypeahead } from '../components/IngredientTypeahead.jsx';
-import { PageHeader } from '../components/PageHeader.jsx';
-import { StatusMessage } from '../components/StatusMessage.jsx';
-import { TagInput } from '../components/TagInput.jsx';
+import { IngredientTypeahead } from '@/components/IngredientTypeahead.jsx';
+import { PageHeader } from '@/components/PageHeader.jsx';
+import { StatusMessage } from '@/components/StatusMessage.jsx';
+import { TagInput } from '@/components/TagInput.jsx';
 import {
   changeAccountPassword,
   completeEmailChange,
@@ -23,14 +24,56 @@ import {
   fetchCurrentProfile,
   requestEmailChange,
   updateProfileIdentity
-} from '../lib/accountApi.js';
+} from '@/lib/accountApi.js';
 import {
   fetchConstraintIngredientsByIds,
   fetchConstraints,
+  fetchSpoonacularDefinitions,
   saveConstraints
-} from '../lib/constraintsApi.js';
-import { getGroups } from '../lib/groupApi.js';
-import { getSavedSession } from '../lib/session.js';
+} from '@/lib/constraintsApi.js';
+import { getGroups } from '@/lib/groupApi.js';
+import { getSavedSession } from '@/lib/session.js';
+
+const EMPTY_DEFINITIONS = {
+  diets: [],
+  intolerances: [],
+  cuisines: []
+};
+
+const SPICE_LEVELS = [
+  { value: null, label: 'No preference' },
+  { value: 'mild', label: 'Mild' },
+  { value: 'medium', label: 'Medium' },
+  { value: 'hot', label: 'Hot' }
+];
+
+function toggleValue(values, value) {
+  return values.includes(value)
+    ? values.filter((currentValue) => currentValue !== value)
+    : [...values, value];
+}
+
+function DefinitionChecklist({ label, options, values, onChange }) {
+  return (
+    <fieldset className="definition-picker">
+      <legend>{label}</legend>
+      <div className="definition-grid">
+        {options.map((option) => (
+          <label className="definition-option" key={option.value}>
+            <input
+              type="checkbox"
+              checked={values.includes(option.value)}
+              onChange={() =>
+                onChange(toggleValue(values, option.value))
+              }
+            />
+            <span>{option.label}</span>
+          </label>
+        ))}
+      </div>
+    </fieldset>
+  );
+}
 
 const PROFILE_PICTURE_MAX_SIZE_BYTES = 5 * 1024 * 1024;
 const PROFILE_PICTURE_CONTENT_TYPES = new Set([
@@ -199,6 +242,13 @@ export function ProfilePage() {
     useState([]);
   const [neverIncludeIngredients, setNeverIncludeIngredients] =
     useState([]);
+  const [diets, setDiets] = useState([]);
+  const [intolerances, setIntolerances] = useState([]);
+  const [preferredCuisines, setPreferredCuisines] = useState([]);
+  const [excludedCuisines, setExcludedCuisines] = useState([]);
+  const [dislikedIngredients, setDislikedIngredients] = useState([]);
+  const [spiceLevel, setSpiceLevel] = useState(null);
+  const [definitions, setDefinitions] = useState(EMPTY_DEFINITIONS);
   const [isLoadingConstraints, setIsLoadingConstraints] =
     useState(true);
   const [isSavingConstraints, setIsSavingConstraints] =
@@ -210,15 +260,27 @@ export function ProfilePage() {
   const totalConstraintCount =
     allergies.length +
     medicalRestrictions.length +
-    neverIncludeIngredients.length;
+    neverIncludeIngredients.length +
+    diets.length +
+    intolerances.length;
+
+  const totalPreferenceCount =
+    preferredCuisines.length +
+    excludedCuisines.length +
+    dislikedIngredients.length +
+    (spiceLevel ? 1 : 0);
 
   const constraintStats = useMemo(
     () => [
+      `${diets.length} diets`,
+      `${intolerances.length} intolerances`,
       `${allergies.length} allergies`,
       `${medicalRestrictions.length} medical rules`,
       `${neverIncludeIngredients.length} blocked ingredients`
     ],
     [
+      diets.length,
+      intolerances.length,
       allergies.length,
       medicalRestrictions.length,
       neverIncludeIngredients.length
@@ -301,19 +363,29 @@ export function ProfilePage() {
       setConstraintError('');
 
       try {
-        const constraints = await fetchConstraints();
+        const [constraints, definitionPayload] = await Promise.all([
+          fetchConstraints(),
+          fetchSpoonacularDefinitions()
+        ]);
         const ingredients =
           await fetchConstraintIngredientsByIds(
-            constraints.neverIncludeIngredientIds
+            constraints.neverIncludeIngredientIds ?? []
           );
 
         if (isCancelled) {
           return;
         }
 
-        setAllergies(constraints.allergies);
-        setMedicalRestrictions(constraints.medicalRestrictions);
+        setDefinitions(definitionPayload ?? EMPTY_DEFINITIONS);
+        setAllergies(constraints.allergies ?? []);
+        setMedicalRestrictions(constraints.medicalRestrictions ?? []);
         setNeverIncludeIngredients(ingredients);
+        setDiets(constraints.diets ?? []);
+        setIntolerances(constraints.intolerances ?? []);
+        setPreferredCuisines(constraints.preferredCuisines ?? []);
+        setExcludedCuisines(constraints.excludedCuisines ?? []);
+        setDislikedIngredients(constraints.dislikedIngredients ?? []);
+        setSpiceLevel(constraints.spiceLevel ?? null);
       } catch (error) {
         if (!isCancelled) {
           setConstraintError(
@@ -637,18 +709,30 @@ export function ProfilePage() {
       const constraints = await saveConstraints({
         allergies,
         medicalRestrictions,
+        diets,
+        intolerances,
         neverIncludeIngredientIds: neverIncludeIngredients.map(
           (ingredient) => ingredient.id
-        )
+        ),
+        preferredCuisines,
+        excludedCuisines,
+        dislikedIngredients,
+        spiceLevel
       });
       const ingredients = await fetchConstraintIngredientsByIds(
-        constraints.neverIncludeIngredientIds
+        constraints.neverIncludeIngredientIds ?? []
       );
 
-      setAllergies(constraints.allergies);
-      setMedicalRestrictions(constraints.medicalRestrictions);
+      setAllergies(constraints.allergies ?? []);
+      setMedicalRestrictions(constraints.medicalRestrictions ?? []);
       setNeverIncludeIngredients(ingredients);
-      setConstraintMessage('Hard dietary rules saved.');
+      setDiets(constraints.diets ?? []);
+      setIntolerances(constraints.intolerances ?? []);
+      setPreferredCuisines(constraints.preferredCuisines ?? []);
+      setExcludedCuisines(constraints.excludedCuisines ?? []);
+      setDislikedIngredients(constraints.dislikedIngredients ?? []);
+      setSpiceLevel(constraints.spiceLevel ?? null);
+      setConstraintMessage('Profile rules saved.');
     } catch (error) {
       setConstraintError(
         error instanceof Error
@@ -691,6 +775,9 @@ export function ProfilePage() {
             <span>
               {totalConstraintCount} hard rule
               {totalConstraintCount !== 1 ? 's' : ''}
+            </span>
+            <span>
+              {totalPreferenceCount} preference{totalPreferenceCount !== 1 ? 's' : ''}
             </span>
           </div>
         </div>
@@ -1003,7 +1090,7 @@ export function ProfilePage() {
         <div className="constraints-card__header">
           <div>
             <p className="eyebrow">Hard Rules</p>
-            <h2>Dietary Restrictions</h2>
+            <h2>Dietary Rules</h2>
             <p>
               These rules block generated bundles for the whole
               group when a candidate includes a violating
@@ -1045,14 +1132,39 @@ export function ProfilePage() {
           />
         ) : (
           <div className="constraints-form">
+            <DefinitionChecklist
+              label="Diets"
+              options={definitions.diets}
+              values={diets}
+              onChange={setDiets}
+            />
+            <DefinitionChecklist
+              label="Intolerances"
+              options={definitions.intolerances}
+              values={intolerances}
+              onChange={setIntolerances}
+            />
+            <details className="definitions-panel">
+              <summary>
+                <Info size={16} /> Diet Definitions
+              </summary>
+              <dl>
+                {definitions.diets.map((diet) => (
+                  <div key={diet.value}>
+                    <dt>{diet.label}</dt>
+                    <dd>{diet.description}</dd>
+                  </div>
+                ))}
+              </dl>
+            </details>
             <TagInput
-              label="Allergies"
+              label="Additional Allergies"
               placeholder="Add allergy"
               values={allergies}
               onChange={setAllergies}
             />
             <TagInput
-              label="Medical Restrictions"
+              label="Additional Medical Restrictions"
               placeholder="Add hard restriction"
               values={medicalRestrictions}
               onChange={setMedicalRestrictions}
@@ -1061,6 +1173,50 @@ export function ProfilePage() {
               selected={neverIncludeIngredients}
               onChange={setNeverIncludeIngredients}
             />
+            <section className="preference-section">
+              <div className="preference-section__header">
+                <p className="eyebrow">Soft Preferences</p>
+                <h3>Recipe Direction</h3>
+              </div>
+              <DefinitionChecklist
+                label="Preferred Cuisines"
+                options={definitions.cuisines}
+                values={preferredCuisines}
+                onChange={setPreferredCuisines}
+              />
+              <DefinitionChecklist
+                label="Excluded Cuisines"
+                options={definitions.cuisines}
+                values={excludedCuisines}
+                onChange={setExcludedCuisines}
+              />
+              <TagInput
+                label="Disliked Ingredients"
+                placeholder="Add ingredient"
+                values={dislikedIngredients}
+                onChange={setDislikedIngredients}
+              />
+              <div className="field">
+                <span>Spice Level</span>
+                <div
+                  className="spice-control"
+                  role="group"
+                  aria-label="Spice level">
+                  {SPICE_LEVELS.map((level) => (
+                    <button
+                      key={level.label}
+                      type="button"
+                      className={
+                        spiceLevel === level.value ? 'is-active' : ''
+                      }
+                      aria-pressed={spiceLevel === level.value}
+                      onClick={() => setSpiceLevel(level.value)}>
+                      {level.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </section>
           </div>
         )}
 
