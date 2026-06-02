@@ -29,12 +29,11 @@ jobs:
 
       - name: Zip artifact for deployment
         working-directory: packages/backend
-        run: zip ../../release.zip ./* -r
+        run: zip -r ../../release.zip .
 
       - name: Deploy to Azure Web App
         uses: azure/webapps-deploy@v3
         with:
           app-name: 307-cooking-app
-          slot-name: production
           publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
           package: release.zip
