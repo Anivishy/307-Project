@@ -23,6 +23,8 @@ jobs:
 
       - name: Build
         working-directory: packages/backend
+        env:
+          DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
         run: npm run build
 
       - name: Zip artifact for deployment
