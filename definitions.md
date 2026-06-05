@@ -206,14 +206,17 @@ A case where a generated bundle does not pass required checks. Failed bundles sh
 
 ## Authentication and Notification Concepts
 
-### Clerk
-The authentication provider selected for MVP.
+### Supabase Auth
+The authentication provider used by the application. Supabase Auth handles password hashing, credential verification, session creation, refresh tokens, and bearer-token validation.
 
 ### Email OTP
-Email one-time password authentication. Users sign in by entering their email address, receiving a code, and verifying that code.
+Email one-time password authentication. The backend supports Supabase OTP routes, while the deployed MVP primarily uses email and password sign-in.
+
+### Password Authentication
+Email and password authentication backed by Supabase Auth. Passwords are never stored by the application database in plaintext.
 
 ### Authenticated Session
-A signed-in user session that persists across page refreshes.
+A signed-in Supabase session that persists across page refreshes and provides the access token used by protected API calls.
 
 ### Email Notification
 An email sent by the app to keep members informed. MVP notifications are email-only, not push or in-app notifications.
@@ -297,4 +300,3 @@ A future feature that turns missing ingredients into a shopping list and exports
 
 ### Per-Group Pantry Sharing
 A future feature that lets users choose which pantry items are available to which group. In MVP, profile-level pantry items are available across all groups.
-

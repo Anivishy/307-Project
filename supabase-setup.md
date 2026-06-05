@@ -281,27 +281,57 @@ all.
 
 ## 10. Current Backend API Slice
 
-The database-backed routes currently available are:
+Protected routes use a Supabase bearer token:
 
 ```txt
+Authorization: Bearer <access-token>
+```
+
+The main deployed backend routes are:
+
+```txt
+POST   /api/auth/password/signup
+POST   /api/auth/password/signin
+POST   /api/auth/password/change
+POST   /api/auth/session/refresh
+PATCH  /api/auth/account
+DELETE /api/auth/account
+
 POST   /api/profiles
 GET    /api/profiles/me
 GET    /api/profiles/:profileId
+GET    /api/profile/constraints
+PATCH  /api/profile/constraints
+
+GET    /api/groups
+POST   /api/groups
+GET    /api/groups/:groupId
+GET    /api/groups/:groupId/members
+GET    /api/groups/:groupId/settings
+PATCH  /api/groups/:groupId/settings
+POST   /api/groups/join
+
 GET    /api/ingredients
 POST   /api/ingredients
 PATCH  /api/ingredients/:ingredientId
 DELETE /api/ingredients/:ingredientId
-```
+GET    /api/ingredients/catalog
 
-For now, ingredient routes use an `x-user-id` header as a
-temporary development stand-in for real Supabase Auth session
-handling.
+GET    /api/groups/:groupId/bundle-candidates
+POST   /api/groups/:groupId/bundle-candidates/more
+POST   /api/groups/:groupId/bundle-candidates/select
+
+GET    /api/notifications
+POST   /api/notifications/read
+GET    /api/spoonacular/definitions
+GET    /api/spoonacular/mode
+```
 
 Example:
 
 ```bash
 curl http://localhost:3000/api/ingredients \
-  -H "x-user-id: <profile-uuid>"
+  -H "Authorization: Bearer <access-token>"
 ```
 
 ## 11. Troubleshooting

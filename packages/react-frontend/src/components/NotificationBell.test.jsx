@@ -107,4 +107,61 @@ describe('NotificationBell', () => {
       expect.objectContaining({ method: 'PATCH' })
     );
   });
+
+  it('closes the inbox when the bell is clicked again', async () => {
+    const user = userEvent.setup();
+
+    render(<NotificationBell />);
+
+    const unreadButton = await screen.findByRole('button', {
+      name: /Notifications, 2 unread/i
+    });
+    await user.click(unreadButton);
+
+    expect(
+      await screen.findByRole('dialog', {
+        name: /Notification inbox/i
+      })
+    ).toBeInTheDocument();
+
+    await user.click(
+      screen.getByRole('button', { name: 'Notifications' })
+    );
+
+    expect(
+      screen.queryByRole('dialog', {
+        name: /Notification inbox/i
+      })
+    ).not.toBeInTheDocument();
+  });
+
+  it('shows an empty inbox without marking anything read', async () => {
+    const user = userEvent.setup();
+    fetchMock.mockImplementation(async (input) => {
+      const url = String(input);
+
+      if (url === '/api/notifications') {
+        return jsonResponse({
+          unreadCount: 0,
+          notifications: []
+        });
+      }
+
+      return jsonResponse({ error: 'Unexpected request' }, 404);
+    });
+
+    render(<NotificationBell />);
+
+    await user.click(
+      await screen.findByRole('button', { name: 'Notifications' })
+    );
+
+    expect(
+      await screen.findByText('No notifications yet.')
+    ).toBeInTheDocument();
+    expect(fetchMock).not.toHaveBeenCalledWith(
+      '/api/notifications/read',
+      expect.anything()
+    );
+  });
 });

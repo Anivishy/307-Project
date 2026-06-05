@@ -13,6 +13,7 @@
     "prebuild": "npm run prisma:generate",
     "start": "next start",
     "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
     "pretest": "npm run prisma:generate",
     "prisma:generate": "prisma generate --schema ../../prisma/schema.prisma"
   },
@@ -20,17 +21,23 @@
     "@prisma/adapter-pg": "^7.8.0",
     "@prisma/client": "^7.8.0",
     "dotenv": "^17.4.2",
-    "next": "16.2.4",
+    "next": "^16.2.7",
     "pg": "^8.20.0"
   },
   "devDependencies": {
     "@types/node": "^20",
     "@types/pg": "^8.20.0",
     "@types/react": "^19",
+    "@vitest/coverage-v8": "^4.1.8",
     "eslint": "^9",
     "eslint-config-next": "16.2.4",
     "prisma": "^7.8.0",
     "typescript": "^5",
     "vitest": "^4.1.5"
+  },
+  "overrides": {
+    "@hono/node-server": "^1.19.13",
+    "hono": "^4.12.23",
+    "postcss": "^8.5.15"
   }
 }
