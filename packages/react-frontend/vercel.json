@@ -5,7 +5,7 @@
   "rewrites": [
     {
       "source": "/api/:path*",
-      "destination": "https://REPLACE-WITH-BACKEND-DOMAIN.vercel.app/api/:path*"
+      "destination": "https://307-project-sbqh.vercel.app/api/:path*"
     },
     {
       "source": "/:path*",
