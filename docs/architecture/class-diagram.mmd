@@ -1,0 +1,129 @@
+classDiagram
+  direction LR
+
+  class Profile {
+    String id
+    String email
+    String displayName
+    String profilePictureUrl
+    String[] allergies
+    String[] medicalRestrictions
+    String[] neverIncludeIngredientIds
+    String[] diets
+    String[] intolerances
+    String[] preferredCuisines
+    String[] excludedCuisines
+    String[] dislikedIngredients
+    String spiceLevel
+    DateTime createdAt
+    DateTime updatedAt
+  }
+
+  class Ingredient {
+    String id
+    String ownerId
+    String canonicalIngredientId
+    String name
+    Decimal quantity
+    String unit
+    String notes
+    DateTime createdAt
+    DateTime updatedAt
+  }
+
+  class Group {
+    String id
+    String ownerId
+    String name
+    String description
+    String inviteCode
+    Int pantrySnapshotVersion
+    Int activeBundleVersion
+    String selectedBundleId
+    Boolean allowMissingIngredients
+    Boolean staplesEnabled
+    String[] customStaples
+    DateTime createdAt
+    DateTime updatedAt
+  }
+
+  class GroupMember {
+    String id
+    String groupId
+    String profileId
+    GroupRole role
+    DateTime joinedAt
+  }
+
+  class MenuRequest {
+    String id
+    String groupId
+    String requestedById
+    String prompt
+    String cuisine
+    Int mealCount
+    MenuRequestStatus status
+    DateTime createdAt
+    DateTime updatedAt
+  }
+
+  class Menu {
+    String id
+    String groupId
+    String requestId
+    String title
+    String summary
+    DateTime createdAt
+    DateTime updatedAt
+  }
+
+  class Recipe {
+    String id
+    String menuId
+    String title
+    MealCategory category
+    String instructions
+    Int servings
+    DateTime createdAt
+    DateTime updatedAt
+  }
+
+  class RecipeIngredient {
+    String id
+    String recipeId
+    String fromProfileId
+    String name
+    Decimal quantity
+    String unit
+    String notes
+  }
+
+  class Notification {
+    String id
+    String recipientId
+    String actorId
+    String groupId
+    String ingredientId
+    NotificationType type
+    String title
+    String message
+    Json metadata
+    DateTime readAt
+    DateTime createdAt
+  }
+
+  Profile "1" --> "0..*" Ingredient : owns
+  Profile "1" --> "0..*" Group : owns
+  Profile "1" --> "0..*" GroupMember : joins
+  Group "1" --> "0..*" GroupMember : members
+  Group "1" --> "0..*" MenuRequest : requests
+  Profile "1" --> "0..*" MenuRequest : requests
+  Group "1" --> "0..*" Menu : menus
+  MenuRequest "0..1" --> "0..1" Menu : creates
+  Menu "1" --> "0..*" Recipe : contains
+  Recipe "1" --> "0..*" RecipeIngredient : requires
+  Profile "0..1" --> "0..*" RecipeIngredient : contributes
+  Profile "1" --> "0..*" Notification : receives
+  Profile "0..1" --> "0..*" Notification : acts
+  Group "0..1" --> "0..*" Notification : scopes
+  Ingredient "0..1" --> "0..*" Notification : references

@@ -470,7 +470,7 @@ FR16.15 Account-management updates, sensitive-change verification, and account d
 
 5. NON-FUNCTIONAL REQUIREMENTS
 -	INTEGRITY: The system shall validate user input and handle errors without crashing.
--	SECURITY: Passwords shall be hashed using bcrypt, and sensitive data stored in environment variables.
+-	SECURITY: Passwords shall be handled by Supabase Auth, and sensitive data shall be stored in environment variables.
 -	USABILITY: The interface shall be simple and easy to navigate across pantry, profile, groups, and menu pages.
 -	PERFORMANCE: The system shall respond quickly, including menu generation within a reasonable time.
 -	RELIABILITY: The system shall operate consistently without data loss or frequent failures.
