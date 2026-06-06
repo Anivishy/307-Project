@@ -1,0 +1,157 @@
+%% RecipeCollab domain model — UML class diagram (source)
+%% Source of truth: prisma/schema.prisma
+%% Last updated: June 5, 2026
+%% Render: paste into https://mermaid.live or any Mermaid-aware Markdown viewer.
+classDiagram
+    direction LR
+
+    class Profile {
+        +UUID id
+        +String email
+        +String displayName
+        +String[] allergies
+        +String[] medicalRestrictions
+        +String[] diets
+        +String[] intolerances
+        +String[] preferredCuisines
+        +String[] excludedCuisines
+        +String[] dislikedIngredients
+        +String spiceLevel
+        +DateTime createdAt
+        +DateTime updatedAt
+    }
+
+    class Ingredient {
+        +UUID id
+        +UUID ownerId
+        +String canonicalIngredientId
+        +String name
+        +Decimal quantity
+        +String unit
+        +String notes
+        +DateTime createdAt
+        +DateTime updatedAt
+    }
+
+    class Group {
+        +UUID id
+        +UUID ownerId
+        +String name
+        +String description
+        +String inviteCode
+        +Int pantrySnapshotVersion
+        +Int activeBundleVersion
+        +String selectedBundleId
+        +Boolean allowMissingIngredients
+        +Boolean staplesEnabled
+        +String[] customStaples
+    }
+
+    class GroupMember {
+        +UUID id
+        +UUID groupId
+        +UUID profileId
+        +GroupRole role
+        +DateTime joinedAt
+    }
+
+    class MenuRequest {
+        +UUID id
+        +UUID groupId
+        +UUID requestedById
+        +String prompt
+        +String cuisine
+        +Int mealCount
+        +MenuRequestStatus status
+    }
+
+    class Menu {
+        +UUID id
+        +UUID groupId
+        +UUID requestId
+        +String title
+        +String summary
+    }
+
+    class Recipe {
+        +UUID id
+        +UUID menuId
+        +String title
+        +MealCategory category
+        +String instructions
+        +Int servings
+    }
+
+    class RecipeIngredient {
+        +UUID id
+        +UUID recipeId
+        +UUID fromProfileId
+        +String name
+        +Decimal quantity
+        +String unit
+        +String notes
+    }
+
+    class Notification {
+        +UUID id
+        +UUID recipientId
+        +UUID actorId
+        +UUID groupId
+        +UUID ingredientId
+        +NotificationType type
+        +String title
+        +String message
+        +Json metadata
+        +DateTime readAt
+        +DateTime createdAt
+    }
+
+    class GroupRole {
+        <<enumeration>>
+        OWNER
+        ADMIN
+        MEMBER
+    }
+
+    class MenuRequestStatus {
+        <<enumeration>>
+        PENDING
+        COMPLETED
+        FAILED
+    }
+
+    class MealCategory {
+        <<enumeration>>
+        APPETIZER
+        MAIN
+        SIDE
+        DESSERT
+        DRINK
+        OTHER
+    }
+
+    class NotificationType {
+        <<enumeration>>
+        INGREDIENT_ADDED
+    }
+
+    Profile "1" --> "0..*" Ingredient : owns
+    Profile "1" --> "0..*" Group : owns
+    Profile "1" --> "0..*" GroupMember : has
+    Group "1" --> "0..*" GroupMember : contains
+    Profile "1" --> "0..*" MenuRequest : requests
+    Group "1" --> "0..*" MenuRequest : receives
+    MenuRequest "1" --> "0..1" Menu : produces
+    Group "1" --> "0..*" Menu : owns
+    Menu "1" --> "0..*" Recipe : contains
+    Recipe "1" --> "0..*" RecipeIngredient : lists
+    Profile "0..1" --> "0..*" RecipeIngredient : contributes
+    Profile "1" --> "0..*" Notification : receives
+    Profile "0..1" --> "0..*" Notification : acted
+    Group "0..1" --> "0..*" Notification : scopes
+    Ingredient "0..1" --> "0..*" Notification : about
+
+    GroupMember ..> GroupRole : uses
+    MenuRequest ..> MenuRequestStatus : uses
+    Recipe ..> MealCategory : uses
+    Notification ..> NotificationType : uses

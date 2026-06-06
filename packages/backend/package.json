@@ -14,7 +14,9 @@
     "start": "next start",
     "lint": "eslint .",
     "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
     "pretest": "npm run prisma:generate",
+    "pretest:coverage": "npm run prisma:generate",
     "prisma:generate": "prisma generate --schema ../../prisma/schema.prisma"
   },
   "dependencies": {
@@ -32,6 +34,7 @@
     "eslint-config-next": "16.2.4",
     "prisma": "^7.8.0",
     "typescript": "^5",
-    "vitest": "^4.1.5"
+    "vitest": "^4.1.5",
+    "@vitest/coverage-v8": "^4.1.5"
   }
 }
